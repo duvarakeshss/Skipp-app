@@ -1,6 +1,208 @@
-﻿import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, ScrollView, Image } from 'react-native';
+﻿import React, { useState, useEffect } from 'react';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, Keyboard } from 'react-native';
 import { useRouter } from 'expo-router';
+import styled from 'styled-components/native';
+import Svg, { Defs, LinearGradient, Stop, Circle, Path } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
+
+// Logo Component
+const LogoSVG = () => (
+  <Svg width="64" height="64" viewBox="0 0 100 100">
+    <Defs>
+      <LinearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <Stop offset="0%" stopColor="#1173d4" stopOpacity="1" />
+        <Stop offset="100%" stopColor="#0f6ac0" stopOpacity="1" />
+      </LinearGradient>
+    </Defs>
+    <Circle cx="50" cy="50" r="45" fill="url(#logoGradient)" stroke="#ffffff" strokeWidth="2"/>
+    <Path d="M25 25 L25 75 L35 75 L50 50 L65 75 L75 75 L75 25 L65 25 L50 50 L35 25 Z" fill="white"/>
+  </Svg>
+);
+
+// Styled Components
+const Container = styled(KeyboardAvoidingView)`
+  flex: 1;
+`;
+
+const Background = styled(ScrollView)`
+  flex-grow: 1;
+  background-color: #0f172a;
+`;
+
+const BackgroundImage = styled.ImageBackground`
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+`;
+
+const Overlay = styled.View`
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(15, 23, 42, 0.85);
+`;
+
+const MainContent = styled.View<{ isKeyboardVisible: boolean }>`
+  flex: 1;
+  justify-content: center;
+  padding: 32px;
+  padding-top: 80px;
+  transform: translateY(${props => props.isKeyboardVisible ? '-80px' : '0px'});
+  transition: transform 0.3s ease;
+`;
+
+const LoginCard = styled.View`
+  background-color: rgba(30, 41, 59, 0.8);
+  border-radius: 16px;
+  padding: 32px;
+  border-width: 1px;
+  border-color: rgba(51, 65, 85, 0.5);
+`;
+
+const LogoContainer = styled.View`
+  align-items: center;
+  margin-bottom: 32px;
+`;
+
+const LogoWrapper = styled.View`
+  margin-bottom: 16px;
+`;
+
+const Title = styled.Text`
+  font-size: 32px;
+  font-weight: bold;
+  color: white;
+  margin-bottom: 8px;
+`;
+
+const Subtitle = styled.Text`
+  font-size: 18px;
+  color: #cbd5e1;
+`;
+
+const FormContainer = styled.View`
+  gap: 24px;
+`;
+
+const InputContainer = styled.View`
+  gap: 8px;
+`;
+
+const InputLabel = styled.Text`
+  color: #cbd5e1;
+  margin-bottom: 8px;
+  margin-left: 4px;
+`;
+
+const TextInputStyled = styled.TextInput`
+  background-color: #374151;
+  border-width: 2px;
+  border-color: #4b5563;
+  border-radius: 8px;
+  padding: 14px 16px;
+  color: white;
+  font-size: 16px;
+`;
+
+const PasswordContainer = styled.View`
+  position: relative;
+`;
+
+const PasswordInput = styled(TextInputStyled)`
+  padding-right: 48px;
+`;
+
+const PasswordToggle = styled.TouchableOpacity`
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  margin-top: -12px;
+  padding: 4px;
+`;
+
+const SecurityNotice = styled.View`
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(30, 58, 138, 0.3);
+  padding: 12px;
+  border-radius: 8px;
+  border-width: 1px;
+  border-color: rgba(30, 64, 175, 0.5);
+`;
+
+const SecurityIcon = styled.Text`
+  color: #60a5fa;
+  margin-right: 8px;
+`;
+
+const SecurityText = styled.Text`
+  color: #cbd5e1;
+  font-size: 14px;
+`;
+
+const ErrorContainer = styled.View`
+  background-color: rgba(127, 29, 29, 0.3);
+  border-width: 1px;
+  border-color: rgba(153, 27, 27, 0.5);
+  border-radius: 8px;
+  padding: 12px;
+`;
+
+const ErrorText = styled.Text`
+  color: #f87171;
+  text-align: center;
+  font-size: 14px;
+`;
+
+const LoginButton = styled.TouchableOpacity<{ isLoading: boolean }>`
+  background-color: #2563eb;
+  border-radius: 8px;
+  padding: 14px;
+  align-items: center;
+  opacity: ${props => props.isLoading ? 0.7 : 1};
+`;
+
+const LoginButtonContent = styled.View`
+  flex-direction: row;
+  align-items: center;
+`;
+
+const LoadingSpinner = styled.View`
+  width: 20px;
+  height: 20px;
+  border-width: 2px;
+  border-color: white;
+  border-top-color: transparent;
+  border-radius: 10px;
+  margin-right: 8px;
+`;
+
+const LoginButtonText = styled.Text`
+  color: white;
+  font-weight: 600;
+  font-size: 16px;
+`;
+
+const BottomBar = styled.View`
+  background-color: rgba(0, 0, 0, 0.5);
+  border-top-width: 1px;
+  border-top-color: rgba(55, 65, 81, 0.5);
+`;
+
+const BottomBarContent = styled.View`
+  padding: 16px 32px;
+`;
+
+const CopyrightText = styled.Text`
+  text-align: center;
+  color: #94a3b8;
+  font-size: 14px;
+`;
 
 export default function LoginScreen() {
   const [rollNo, setRollNo] = useState('');
@@ -8,7 +210,28 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener(
+      'keyboardDidShow',
+      () => {
+        setKeyboardVisible(true);
+      }
+    );
+    const keyboardDidHideListener = Keyboard.addListener(
+      'keyboardDidHide',
+      () => {
+        setKeyboardVisible(false);
+      }
+    );
+
+    return () => {
+      keyboardDidHideListener?.remove();
+      keyboardDidShowListener?.remove();
+    };
+  }, []);
 
   const handleLogin = async () => {
     setError('');
@@ -58,62 +281,54 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
+    <Container
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      className="flex-1"
     >
-      <ScrollView
+      <Background
         contentContainerStyle={{ flexGrow: 1 }}
-        className="bg-slate-900"
         keyboardShouldPersistTaps="handled"
       >
         {/* Background Image */}
-        <View className="absolute inset-0">
-          <Image
-            source={{ uri: 'https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=800' }}
-            className="w-full h-full"
-            resizeMode="cover"
-          />
-          <View className="absolute inset-0 bg-slate-900/85" />
-        </View>
+        <BackgroundImage
+          source={{ uri: 'https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=800' }}
+          resizeMode="cover"
+        >
+          <Overlay />
+        </BackgroundImage>
 
         {/* Main Content */}
-        <View className="flex-1 justify-center px-8 pt-20">
-          <View className="bg-slate-800/80 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-slate-700/50">
+        <MainContent isKeyboardVisible={isKeyboardVisible}>
+          <LoginCard>
             {/* Logo and Title */}
-            <View className="items-center mb-8">
-              <View className="w-16 h-16 bg-blue-600 rounded-full items-center justify-center mb-4">
-                <Text className="text-white text-2xl font-bold">N</Text>
-              </View>
-              <Text className="text-4xl font-bold text-white mb-2">Nimora</Text>
-              <Text className="text-lg text-slate-300">Track Your Attendance</Text>
-            </View>
+            <LogoContainer>
+              <LogoWrapper>
+                <LogoSVG />
+              </LogoWrapper>
+              <Title>Nimora</Title>
+              <Subtitle>Track Your Attendance</Subtitle>
+            </LogoContainer>
 
             {/* Login Form */}
-            <View className="space-y-6">
+            <FormContainer>
               {/* Roll Number Input */}
-              <View>
-                <Text className="text-slate-300 mb-2 ml-1">Roll Number</Text>
-                <View className="relative">
-                  <TextInput
-                    className="bg-slate-700 border-2 border-slate-600 rounded-lg px-4 py-3.5 text-white placeholder-slate-400"
-                    placeholder="Enter your roll number"
-                    placeholderTextColor="#94a3b8"
-                    value={rollNo}
-                    onChangeText={setRollNo}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    editable={!isLoading}
-                  />
-                </View>
-              </View>
+              <InputContainer>
+                <InputLabel>Roll Number</InputLabel>
+                <TextInputStyled
+                  placeholder="Enter your roll number"
+                  placeholderTextColor="#94a3b8"
+                  value={rollNo}
+                  onChangeText={setRollNo}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={!isLoading}
+                />
+              </InputContainer>
 
               {/* Password Input */}
-              <View>
-                <Text className="text-slate-300 mb-2 ml-1">Password</Text>
-                <View className="relative">
-                  <TextInput
-                    className="bg-slate-700 border-2 border-slate-600 rounded-lg px-4 py-3.5 text-white placeholder-slate-400 pr-12"
+              <InputContainer>
+                <InputLabel>Password</InputLabel>
+                <PasswordContainer>
+                  <PasswordInput
                     placeholder="Enter your password"
                     placeholderTextColor="#94a3b8"
                     value={password}
@@ -123,59 +338,60 @@ export default function LoginScreen() {
                     autoCorrect={false}
                     editable={!isLoading}
                   />
-                  <TouchableOpacity
-                    className="absolute right-4 top-1/2 -translate-y-2"
+                  <PasswordToggle
                     onPress={() => setShowPassword(!showPassword)}
                     disabled={isLoading}
                   >
-                    <Text className="text-slate-400 text-lg">
-                      {showPassword ? '🙈' : '👁️'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
+                    <Ionicons
+                      name={showPassword ? 'eye-off' : 'eye'}
+                      size={20}
+                      color="#94a3b8"
+                    />
+                  </PasswordToggle>
+                </PasswordContainer>
+              </InputContainer>
 
               {/* Security Notice */}
-              <View className="flex-row items-center justify-center bg-blue-900/30 p-3 rounded-lg border border-blue-800/50">
-                <Text className="text-blue-400 mr-2">🔒</Text>
-                <Text className="text-slate-300 text-sm">Password is encrypted</Text>
-              </View>
+              <SecurityNotice>
+                <SecurityIcon>🔒</SecurityIcon>
+                <SecurityText>Password is encrypted</SecurityText>
+              </SecurityNotice>
 
               {/* Error Message */}
               {error ? (
-                <View className="bg-red-900/30 border border-red-800/50 rounded-lg p-3">
-                  <Text className="text-red-400 text-center text-sm">{error}</Text>
-                </View>
+                <ErrorContainer>
+                  <ErrorText>{error}</ErrorText>
+                </ErrorContainer>
               ) : null}
 
               {/* Login Button */}
-              <TouchableOpacity
-                className={`bg-blue-600 rounded-lg py-3.5 items-center ${isLoading ? 'opacity-70' : 'active:bg-blue-700'}`}
+              <LoginButton
                 onPress={handleLogin}
                 disabled={isLoading}
+                isLoading={isLoading}
               >
                 {isLoading ? (
-                  <View className="flex-row items-center">
-                    <View className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                    <Text className="text-white font-semibold text-base">Logging in...</Text>
-                  </View>
+                  <LoginButtonContent>
+                    <LoadingSpinner />
+                    <LoginButtonText>Logging in...</LoginButtonText>
+                  </LoginButtonContent>
                 ) : (
-                  <Text className="text-white font-semibold text-base">Login</Text>
+                  <LoginButtonText>Login</LoginButtonText>
                 )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
+              </LoginButton>
+            </FormContainer>
+          </LoginCard>
+        </MainContent>
 
         {/* Bottom Bar */}
-        <View className="bg-black/50 backdrop-blur-sm border-t border-slate-700/50">
-          <View className="px-8 py-4">
-            <Text className="text-center text-slate-400 text-sm">
+        <BottomBar>
+          <BottomBarContent>
+            <CopyrightText>
               © 2025 Nimora. All rights reserved.
-            </Text>
-          </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+            </CopyrightText>
+          </BottomBarContent>
+        </BottomBar>
+      </Background>
+    </Container>
   );
 }
