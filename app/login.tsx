@@ -290,7 +290,7 @@ export default function LoginScreen() {
       >
         {/* Background Image */}
         <BackgroundImage
-          source={{ uri: 'https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=800' }}
+          source={{ uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBmthQzGCvaiD9b2_Evv3ffGwgO48Tmsz7ugSLIsvL9r3NBZUTV4qN615RiPaWay0VknPl_Q0gD3kQOxRU4vgLJFL-7i_tRS_QImCmCiWu-Q3uIikovSr1K2haRBTF1FinTNeHYmD8-di4Zi4-f3_anrM6wFTJZYkX_zxyBidpx9Q0isTNOsNpAr_o9x9yj-1O1kHKSPfLDvIkHAAVcSHfWcRvb2W0e6kEF5ucWpIVwGZXsDEzw991Q3XUjtEzNFB_9x72LYli-E4o' }}
           resizeMode="cover"
         >
           <Overlay />
