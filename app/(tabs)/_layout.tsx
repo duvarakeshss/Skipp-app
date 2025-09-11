@@ -34,10 +34,17 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="timetable"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: 'Timetable',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="feedback"
+        options={{
+          title: 'Feedback',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="feedback" color={color} />,
         }}
       />
     </Tabs>

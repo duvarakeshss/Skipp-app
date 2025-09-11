@@ -4,6 +4,8 @@ import { useRouter } from 'expo-router';
 import styled from 'styled-components/native';
 import Svg, { Defs, LinearGradient, Stop, Circle, Path } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { loginUser } from '../utils/attendanceService';
 
 // Logo Component
 const LogoSVG = () => (
@@ -233,48 +235,61 @@ export default function LoginScreen() {
     };
   }, []);
 
+  // Load saved credentials on component mount
+  useEffect(() => {
+    const loadSavedCredentials = async () => {
+      try {
+        const savedRollNo = await AsyncStorage.getItem('saved_rollno');
+        const savedPassword = await AsyncStorage.getItem('saved_password');
+
+        if (savedRollNo) {
+          setRollNo(savedRollNo);
+        }
+        if (savedPassword) {
+          setPassword(savedPassword);
+        }
+      } catch (error) {
+        console.error('Error loading saved credentials:', error);
+      }
+    };
+
+    loadSavedCredentials();
+  }, []);
+
   const handleLogin = async () => {
     setError('');
     setIsLoading(true);
 
     try {
-      // Validate inputs
-      if (!rollNo || !password) {
+      // Basic input validation
+      if (!rollNo.trim() || !password.trim()) {
         setError('Please fill in all fields');
+        setIsLoading(false);
         return;
       }
 
-      // Basic validation
-      if (rollNo.trim().length === 0) {
-        setError('Please enter a valid roll number');
-        return;
+      // Call the login service (it handles its own validation and error throwing)
+      await loginUser(rollNo.trim(), password);
+
+      // Save credentials locally for future logins
+      try {
+        await AsyncStorage.setItem('saved_rollno', rollNo.trim());
+        await AsyncStorage.setItem('saved_password', password);
+      } catch (storageError) {
+        console.error('Error saving credentials:', storageError);
+        // Don't block login if storage fails
       }
 
-      if (password.length < 6) {
-        setError('Password must be at least 6 characters long');
-        return;
+      // Navigate directly to home page after successful login
+      router.push('/(tabs)');
+
+    } catch (err: any) {
+      // Handle specific error messages from the service
+      if (err.message) {
+        setError(err.message);
+      } else {
+        setError('Login failed. Please check your credentials and try again.');
       }
-
-      // Simulate login process
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // For demo purposes, accept any valid input
-      Alert.alert(
-        'Login Successful',
-        `Welcome, ${rollNo}!`,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              // Navigate to home/dashboard
-              router.push('/(tabs)');
-            }
-          }
-        ]
-      );
-
-    } catch (err) {
-      setError('Login failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
