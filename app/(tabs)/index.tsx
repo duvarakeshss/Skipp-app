@@ -10,8 +10,7 @@ import {
   ActivityIndicator,
   StyleSheet,
   Dimensions,
-  Platform,
-  StatusBar
+  Platform
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -196,21 +195,53 @@ export default function Home() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2563eb" />
-        <Text style={styles.loadingText}>Loading your data...</Text>
-        <Text style={styles.loadingSubtext}>Please wait while we fetch your attendance information</Text>
+        <LinearGradient
+          colors={['#1e3a8a', '#3b82f6']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.loadingGradient}
+        >
+          <View style={styles.loadingContent}>
+            <View style={styles.loadingIcon}>
+              <Ionicons name="analytics" size={48} color="#ffffff" />
+            </View>
+            <Text style={styles.loadingTitle}>Loading Your Data</Text>
+            <Text style={styles.loadingSubtitle}>Fetching your attendance information...</Text>
+
+            <View style={styles.loadingAnimation}>
+              <ActivityIndicator size="large" color="#ffffff" />
+              <View style={styles.loadingBar}>
+                <LinearGradient
+                  colors={['#ffffff', '#e0e7ff', '#c7d2fe']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.loadingProgress}
+                />
+              </View>
+            </View>
+
+            <View style={styles.loadingSteps}>
+              <View style={styles.stepItem}>
+                <View style={styles.stepDot} />
+                <Text style={styles.stepText}>Verifying credentials</Text>
+              </View>
+              <View style={styles.stepItem}>
+                <View style={styles.stepDot} />
+                <Text style={styles.stepText}>Fetching attendance data</Text>
+              </View>
+              <View style={styles.stepItem}>
+                <View style={styles.stepDot} />
+                <Text style={styles.stepText}>Calculating statistics</Text>
+              </View>
+            </View>
+          </View>
+        </LinearGradient>
       </View>
     )
   }
 
   return (
     <View style={styles.fullScreenContainer}>
-      <StatusBar
-        barStyle="light-content"
-        backgroundColor="#000000"
-        translucent={true}
-        hidden={true}
-      />
       {/* Top Bar */}
       <View style={styles.topBar}>
         <View style={styles.topBarContent}>
@@ -436,7 +467,7 @@ const styles = StyleSheet.create({
     paddingTop: 0,
   },
   topBar: {
-    backgroundColor: '#000000',
+    backgroundColor: '#1e3a8a',
     paddingTop: Platform.OS === 'ios' ? 20 : 16,
     paddingBottom: 16,
     paddingHorizontal: 20,
@@ -446,7 +477,7 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 3,
     borderBottomWidth: 1,
-    borderBottomColor: '#333333',
+    borderBottomColor: '#3b82f6',
   },
   topBarContent: {
     flexDirection: 'row',
@@ -541,22 +572,74 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
+  },
+  loadingGradient: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8fafc',
-    padding: 20,
   },
-  loadingText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#374151',
-    marginTop: 16,
+  loadingContent: {
+    alignItems: 'center',
+    padding: 32,
   },
-  loadingSubtext: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginTop: 8,
+  loadingIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  loadingTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#ffffff',
+    marginBottom: 8,
     textAlign: 'center',
+  },
+  loadingSubtitle: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginBottom: 32,
+    textAlign: 'center',
+  },
+  loadingAnimation: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  loadingBar: {
+    width: 200,
+    height: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: 2,
+    marginTop: 20,
+    overflow: 'hidden',
+  },
+  loadingProgress: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  loadingSteps: {
+    width: '100%',
+    maxWidth: 280,
+  },
+  stepItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  stepDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    marginRight: 12,
+  },
+  stepText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '500',
   },
   greetingCard: {
     backgroundColor: '#f1f5f9',

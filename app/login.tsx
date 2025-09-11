@@ -162,11 +162,16 @@ const ErrorText = styled.Text`
 `;
 
 const LoginButton = styled.TouchableOpacity<{ isLoading: boolean }>`
-  background-color: #2563eb;
+  background-color: ${props => props.isLoading ? '#1e40af' : '#2563eb'};
   border-radius: 8px;
   padding: 14px;
   align-items: center;
-  opacity: ${props => props.isLoading ? 0.7 : 1};
+  opacity: ${props => props.isLoading ? 0.9 : 1};
+  shadow-color: #000;
+  shadow-offset: 0px 2px;
+  shadow-opacity: 0.2;
+  shadow-radius: 4px;
+  elevation: 3;
 `;
 
 const LoginButtonContent = styled.View`
@@ -174,14 +179,15 @@ const LoginButtonContent = styled.View`
   align-items: center;
 `;
 
-const LoadingSpinner = styled.View`
+const LoadingSpinner = styled.View<{ isLoading: boolean }>`
   width: 20px;
   height: 20px;
   border-width: 2px;
-  border-color: white;
-  border-top-color: transparent;
+  border-color: ${props => props.isLoading ? 'rgba(255, 255, 255, 0.3)' : 'white'};
+  border-top-color: white;
   border-radius: 10px;
   margin-right: 8px;
+  opacity: ${props => props.isLoading ? 1 : 0};
 `;
 
 const LoginButtonText = styled.Text`
@@ -387,7 +393,7 @@ export default function LoginScreen() {
               >
                 {isLoading ? (
                   <LoginButtonContent>
-                    <LoadingSpinner />
+                    <LoadingSpinner isLoading={isLoading} />
                     <LoginButtonText>Logging in...</LoginButtonText>
                   </LoginButtonContent>
                 ) : (
