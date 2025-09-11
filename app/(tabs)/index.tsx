@@ -15,6 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { LinearGradient } from 'expo-linear-gradient'
+import LogoutModal from '../../components/LogoutModal'
 
 const { width } = Dimensions.get('window')
 
@@ -27,6 +28,8 @@ export default function Home() {
   const [attendanceData, setAttendanceData] = useState<any[]>([])
   const [customPercentage, setCustomPercentage] = useState(80)
   const [combinedData, setCombinedData] = useState<any[]>([])
+  const [showLogoutModal, setShowLogoutModal] = useState(false)
+  const [logoutLoading, setLogoutLoading] = useState(false)
   const toastShownRef = useRef(false)
 
   useEffect(() => {
@@ -165,31 +168,30 @@ export default function Home() {
   }
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel'
-        },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            await clearCredentials()
-            // Clear saved login credentials
-            try {
-              await AsyncStorage.removeItem('saved_rollno')
-              await AsyncStorage.removeItem('saved_password')
-            } catch (storageError) {
-              console.error('Error clearing saved credentials:', storageError)
-            }
-            router.replace('/login')
-          }
-        }
-      ]
-    )
+    setShowLogoutModal(true)
+  }
+
+  const handleLogoutConfirm = async () => {
+    setLogoutLoading(true)
+    try {
+      await clearCredentials()
+      // Clear saved login credentials
+      try {
+        await AsyncStorage.removeItem('saved_rollno')
+        await AsyncStorage.removeItem('saved_password')
+      } catch (storageError) {
+        console.error('Error clearing saved credentials:', storageError)
+      }
+      router.replace('/login')
+    } catch (error) {
+      console.error('Error during logout:', error)
+      setLogoutLoading(false)
+      setShowLogoutModal(false)
+    }
+  }
+
+  const handleLogoutCancel = () => {
+    setShowLogoutModal(false)
   }
 
   if (loading) {
@@ -245,7 +247,12 @@ export default function Home() {
       {/* Top Bar */}
       <View style={styles.topBar}>
         <View style={styles.topBarContent}>
-          <Text style={styles.topBarName}>{(greeting.split(',')[1]?.trim() || greeting.split(' ')[1] || 'User').replace('!', '')}</Text>
+          <View style={styles.profileSection}>
+            <View style={styles.profileIcon}>
+              <Ionicons name="person-circle" size={32} color="#ffffff" />
+            </View>
+            <Text style={styles.topBarName}>{(greeting.split(',')[1]?.trim() || greeting.split(' ')[1] || 'User').replace('!', '')}</Text>
+          </View>
           <TouchableOpacity
             style={styles.topBarLogoutButton}
             onPress={handleLogout}
@@ -286,25 +293,39 @@ export default function Home() {
 
             {/* Birthday Card - only show if it's birthday */}
             {greeting.includes("Birthday") && (
-              <View style={styles.birthdayCard}>
-                <Ionicons name="gift" size={24} color="#f59e0b" />
+              <LinearGradient
+                colors={['#fef3c7', '#fde68a', '#f59e0b']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.birthdayCard}
+              >
+                <View style={styles.birthdayIconContainer}>
+                  <Ionicons name="gift" size={24} color="#92400e" />
+                </View>
                 <View style={styles.birthdayTextContainer}>
                   <Text style={styles.birthdayTitle}>Happy Birthday!</Text>
                   <Text style={styles.birthdayText}>Wishing you a fantastic day!</Text>
                 </View>
-                <Ionicons name="gift" size={24} color="#f59e0b" />
-              </View>
+                <View style={styles.birthdayIconContainer}>
+                  <Ionicons name="gift" size={24} color="#92400e" />
+                </View>
+              </LinearGradient>
             )}
 
           {/* Attendance Overview */}
           {combinedData.length > 0 && (
             <View style={styles.overviewCard}>
-              <View style={styles.overviewHeader}>
+              <LinearGradient
+                colors={['#1e3a8a', '#3b82f6', '#60a5fa']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.overviewHeader}
+              >
                 <View style={styles.overviewIconContainer}>
                   <Ionicons name="document-text" size={24} color="#ffffff" />
                 </View>
                 <Text style={styles.overviewTitle}>Attendance Overview</Text>
-              </View>
+              </LinearGradient>
 
               <View style={styles.percentageContainer}>
                 <View style={styles.percentageHeader}>
@@ -352,18 +373,33 @@ export default function Home() {
           {/* Attendance Data */}
           {combinedData.length > 0 && (
             <View style={styles.dataCard}>
-              {combinedData.map((course, index) => {
+              <View style={styles.dataCardContent}>
+                {combinedData.map((course, index) => {
                 const isLowAttendance = parseInt(course.percentage) < 75
                 const canAffordLeaves = course.affordableLeaves >= 0
 
                 return (
                   <View key={index} style={styles.courseCard}>
-                    <View style={styles.courseHeader}>
+                    <LinearGradient
+                      colors={['#1e3a8a', '#3b82f6', '#60a5fa']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.courseHeader}
+                    >
+                      <View style={styles.courseIconContainer}>
+                        <Ionicons name="school" size={20} color="#ffffff" />
+                      </View>
                       <Text style={styles.courseCode}>{course.courseCode}</Text>
                       <View style={[
                         styles.statusBadge,
                         canAffordLeaves ? styles.statusGood : styles.statusWarning
                       ]}>
+                        <Ionicons
+                          name={canAffordLeaves ? "checkmark-circle" : "warning"}
+                          size={14}
+                          color={canAffordLeaves ? "#166534" : "#92400e"}
+                          style={{ marginRight: 4 }}
+                        />
                         <Text style={[
                           styles.statusText,
                           canAffordLeaves ? styles.statusTextGood : styles.statusTextWarning
@@ -371,7 +407,7 @@ export default function Home() {
                           {canAffordLeaves ? 'Good Standing' : 'Action Needed'}
                         </Text>
                       </View>
-                    </View>
+                    </LinearGradient>
 
                     {/* Progress Bar */}
                     <View style={styles.progressContainer}>
@@ -435,27 +471,47 @@ export default function Home() {
                   </View>
                 )
               })}
+              </View>
             </View>
           )}
 
           {/* No Data State */}
           {combinedData.length === 0 && !loading && (
             <View style={styles.emptyCard}>
-              <View style={styles.emptyIconContainer}>
-                <Ionicons name="time" size={48} color="#64748b" />
-              </View>
-              <Text style={styles.emptyTitle}>Attendance Data Unavailable</Text>
-              <Text style={styles.emptyText}>
-                Your attendance data is currently being updated. Please check back later for the latest information.
-              </Text>
-              <View style={styles.emptyStatus}>
-                <Text style={styles.emptyStatusText}>Data synchronization in progress...</Text>
+              <LinearGradient
+                colors={['#1e3a8a', '#3b82f6', '#60a5fa']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.emptyHeader}
+              >
+                <View style={styles.emptyIconContainer}>
+                  <Ionicons name="time" size={32} color="#ffffff" />
+                </View>
+                <Text style={styles.emptyHeaderTitle}>Attendance Data</Text>
+              </LinearGradient>
+
+              <View style={styles.emptyContent}>
+                <Text style={styles.emptyTitle}>Data Unavailable</Text>
+                <Text style={styles.emptyText}>
+                  Your attendance data is currently being updated. Please check back later for the latest information.
+                </Text>
+                <View style={styles.emptyStatus}>
+                  <Ionicons name="sync" size={16} color="#6b7280" style={{ marginRight: 8 }} />
+                  <Text style={styles.emptyStatusText}>Data synchronization in progress...</Text>
+                </View>
               </View>
             </View>
           )}
         </>
       )}
     </ScrollView>
+
+    <LogoutModal
+      visible={showLogoutModal}
+      onCancel={handleLogoutCancel}
+      onConfirm={handleLogoutConfirm}
+      loading={logoutLoading}
+    />
     </View>
   )
 }
@@ -484,13 +540,23 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  greetingContainer: {
+  profileSection: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
-  topBarGreetingTextContainer: {
-    marginLeft: 12,
+  profileIcon: {
+    marginRight: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  topBarName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#ffffff',
     flex: 1,
   },
   topBarGreeting: {
@@ -503,21 +569,20 @@ const styles = StyleSheet.create({
     color: '#e0e7ff',
     marginTop: 2,
   },
-  topBarName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    flex: 1,
-  },
   topBarLogoutButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#333333',
+    backgroundColor: '#dc2626',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#555555',
+    borderColor: '#ef4444',
+    shadowColor: '#dc2626',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   greetingBelowBar: {
     margin: 16,
@@ -687,12 +752,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fef3c7',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 20,
     marginTop: 16,
-    borderWidth: 1,
-    borderColor: '#f59e0b',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  birthdayIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(146, 64, 14, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 8,
   },
   birthdayTextContainer: {
     marginHorizontal: 12,
@@ -713,17 +789,21 @@ const styles = StyleSheet.create({
     margin: 16,
     marginTop: 0,
     borderRadius: 16,
-    padding: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
     elevation: 4,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   overviewHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    padding: 20,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    marginBottom: 0,
   },
   overviewIconContainer: {
     width: 48,
@@ -742,7 +822,8 @@ const styles = StyleSheet.create({
   percentageContainer: {
     backgroundColor: '#f8fafc',
     borderRadius: 12,
-    padding: 16,
+    padding: 20,
+    margin: 16,
     borderWidth: 1,
     borderColor: '#e2e8f0',
   },
@@ -817,41 +898,44 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     textAlign: 'center',
   },
-  dataCard: {
-    backgroundColor: '#ffffff',
-    margin: 16,
-    marginTop: 0,
-    borderRadius: 16,
+  dataCardContent: {
     padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
   },
   courseCard: {
     backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
     marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
   },
   courseHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    padding: 16,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
     marginBottom: 16,
+  },
+  courseIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
   },
   courseCode: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: '#ffffff',
+    flex: 1,
   },
   statusBadge: {
     paddingHorizontal: 8,
@@ -974,33 +1058,67 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 2,
   },
+  dataCard: {
+    backgroundColor: '#ffffff',
+    margin: 16,
+    marginTop: 0,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  dataCardContent: {
+    padding: 20,
+  },
   emptyCard: {
     backgroundColor: '#ffffff',
     margin: 16,
     marginTop: 0,
     borderRadius: 16,
-    padding: 32,
-    alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
     elevation: 4,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  emptyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
   },
   emptyIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#f1f5f9',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    marginRight: 12,
+  },
+  emptyHeaderTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#ffffff',
+  },
+  emptyContent: {
+    padding: 20,
+    alignItems: 'center',
   },
   emptyTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#1f2937',
     marginBottom: 8,
+    marginTop: 16,
     textAlign: 'center',
   },
   emptyText: {

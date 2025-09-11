@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useRouter } from 'expo-router'
 import { getStoredCredentials, clearCredentials, autoFeedback, greetUser } from '../../utils/attendanceService'
 import {
@@ -15,6 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { LinearGradient } from 'expo-linear-gradient'
+import LogoutModal from '../../components/LogoutModal'
 
 const { width } = Dimensions.get('window')
 
@@ -24,6 +25,8 @@ export default function Feedback() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [userName, setUserName] = useState('')
+  const [showLogoutModal, setShowLogoutModal] = useState(false)
+  const [logoutLoading, setLogoutLoading] = useState(false)
 
   useEffect(() => {
     const checkCredentials = async () => {
@@ -57,31 +60,30 @@ export default function Feedback() {
   }, [])
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel'
-        },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            await clearCredentials()
-            // Clear saved login credentials
-            try {
-              await AsyncStorage.removeItem('saved_rollno')
-              await AsyncStorage.removeItem('saved_password')
-            } catch (storageError) {
-              console.error('Error clearing saved credentials:', storageError)
-            }
-            router.replace('/login')
-          }
-        }
-      ]
-    )
+    setShowLogoutModal(true)
+  }
+
+  const handleLogoutConfirm = async () => {
+    setLogoutLoading(true)
+    try {
+      await clearCredentials()
+      // Clear saved login credentials
+      try {
+        await AsyncStorage.removeItem('saved_rollno')
+        await AsyncStorage.removeItem('saved_password')
+      } catch (storageError) {
+        console.error('Error clearing saved credentials:', storageError)
+      }
+      router.replace('/login')
+    } catch (error) {
+      console.error('Error during logout:', error)
+      setLogoutLoading(false)
+      setShowLogoutModal(false)
+    }
+  }
+
+  const handleLogoutCancel = () => {
+    setShowLogoutModal(false)
   }
 
   const handleAutoFeedback = async (feedbackIndex: number) => {
@@ -113,7 +115,12 @@ export default function Feedback() {
       {/* Top Bar */}
       <View style={styles.topBar}>
         <View style={styles.topBarContent}>
-          <Text style={styles.topBarTitle}>{userName || 'User'}</Text>
+          <View style={styles.profileSection}>
+            <View style={styles.profileIcon}>
+              <Ionicons name="person-circle" size={32} color="#ffffff" />
+            </View>
+            <Text style={styles.topBarTitle}>{userName || 'User'}</Text>
+          </View>
           <TouchableOpacity
             style={styles.topBarLogoutButton}
             onPress={handleLogout}
@@ -373,6 +380,13 @@ export default function Feedback() {
           </View>
         </View>
       </ScrollView>
+
+      <LogoutModal
+        visible={showLogoutModal}
+        onCancel={handleLogoutCancel}
+        onConfirm={handleLogoutConfirm}
+        loading={logoutLoading}
+      />
     </View>
   )
 }
@@ -400,6 +414,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  profileSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  profileIcon: {
+    marginRight: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
   topBarTitle: {
     fontSize: 20,
     fontWeight: 'bold',
@@ -410,11 +437,16 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#333333',
+    backgroundColor: '#dc2626',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#555555',
+    borderColor: '#ef4444',
+    shadowColor: '#dc2626',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   scrollContainer: {
     flex: 1,
