@@ -399,18 +399,18 @@ export default function Timetable() {
       {/* Top Bar */}
       <View style={styles.topBar}>
         <View style={styles.topBarContent}>
+          <View style={styles.spacer} />
           <View style={styles.profileSection}>
-            <View style={styles.profileIcon}>
-              <Ionicons name="person-circle" size={32} color="#ffffff" />
-            </View>
             <Text style={styles.topBarTitle}>{userName || 'User'}</Text>
+            <TouchableOpacity
+              style={styles.profileIconButton}
+              onPress={handleLogout}
+            >
+              <View style={styles.profileIcon}>
+                <Ionicons name="person-circle" size={40} color="#ffffff" />
+              </View>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            style={styles.topBarLogoutButton}
-            onPress={handleLogout}
-          >
-            <Ionicons name="log-out-outline" size={20} color="#ffffff" />
-          </TouchableOpacity>
         </View>
       </View>
 
@@ -569,7 +569,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   topBar: {
-    backgroundColor: '#1e3a8a',
+    backgroundColor: '#0f172a',
     paddingTop: Platform.OS === 'ios' ? 20 : 16,
     paddingBottom: 16,
     paddingHorizontal: 20,
@@ -579,46 +579,39 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 3,
     borderBottomWidth: 1,
-    borderBottomColor: '#3b82f6',
+    borderBottomColor: '#1e40af',
   },
   topBarContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  spacer: {
+    flex: 1,
+  },
   profileSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    justifyContent: 'flex-end',
   },
   profileIcon: {
-    marginRight: 12,
+    marginLeft: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 2,
     elevation: 2,
   },
+  profileIconButton: {
+    padding: 4,
+    borderRadius: 16,
+  },
   topBarTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#ffffff',
     flex: 1,
-  },
-  topBarLogoutButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#dc2626',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ef4444',
-    shadowColor: '#dc2626',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
+    marginTop: 2,
   },
   scrollContainer: {
     flex: 1,

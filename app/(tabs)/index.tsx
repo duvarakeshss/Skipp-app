@@ -241,18 +241,18 @@ export default function Home() {
       {/* Top Bar */}
       <View style={styles.topBar}>
         <View style={styles.topBarContent}>
+          <View style={styles.spacer} />
           <View style={styles.profileSection}>
-            <View style={styles.profileIcon}>
-              <Ionicons name="person-circle" size={32} color="#ffffff" />
-            </View>
             <Text style={styles.topBarName}>{(greeting.split(',')[1]?.trim() || greeting.split(' ')[1] || 'User').replace('!', '')}</Text>
+            <TouchableOpacity
+              style={styles.profileIconButton}
+              onPress={handleLogout}
+            >
+              <View style={styles.profileIcon}>
+                <Ionicons name="person-circle" size={40} color="#ffffff" />
+              </View>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            style={styles.topBarLogoutButton}
-            onPress={handleLogout}
-          >
-            <Ionicons name="log-out-outline" size={20} color="#ffffff" />
-          </TouchableOpacity>
         </View>
       </View>
 
@@ -471,30 +471,20 @@ export default function Home() {
 
           {/* No Data State */}
           {combinedData.length === 0 && !loading && (
-            <View style={styles.emptyCard}>
-              <LinearGradient
-                colors={['#1e3a8a', '#3b82f6', '#60a5fa']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.emptyHeader}
-              >
-                <View style={styles.emptyIconContainer}>
-                  <Ionicons name="time" size={32} color="#ffffff" />
-                </View>
-                <Text style={styles.emptyHeaderTitle}>Attendance Data</Text>
-              </LinearGradient>
-
-              <View style={styles.emptyContent}>
-                <Text style={styles.emptyTitle}>Data Unavailable</Text>
-                <Text style={styles.emptyText}>
-                  Your attendance data is currently being updated. Please check back later for the latest information.
-                </Text>
-                <View style={styles.emptyStatus}>
-                  <Ionicons name="sync" size={16} color="#6b7280" style={{ marginRight: 8 }} />
-                  <Text style={styles.emptyStatusText}>Data synchronization in progress...</Text>
-                </View>
+            <LinearGradient
+              colors={['#f0f9ff', '#e0f2fe']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.messageCard}
+            >
+              <View style={styles.messageIcon}>
+                <Ionicons name="time" size={32} color="#0369a1" />
               </View>
-            </View>
+              <View style={styles.messageContent}>
+                <Text style={styles.messageTitle}>Attendance Data</Text>
+                <Text style={styles.messageText}>In progress ...</Text>
+              </View>
+            </LinearGradient>
           )}
         </>
       )}
@@ -517,7 +507,7 @@ const styles = StyleSheet.create({
     paddingTop: 0,
   },
   topBar: {
-    backgroundColor: '#1e3a8a',
+    backgroundColor: '#0f172a',
     paddingTop: Platform.OS === 'ios' ? 20 : 16,
     paddingBottom: 16,
     paddingHorizontal: 20,
@@ -527,31 +517,39 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 3,
     borderBottomWidth: 1,
-    borderBottomColor: '#3b82f6',
+    borderBottomColor: '#1e40af',
   },
   topBarContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  spacer: {
+    flex: 1,
+  },
   profileSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    justifyContent: 'flex-end',
   },
   profileIcon: {
-    marginRight: 12,
+    marginLeft: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 2,
     elevation: 2,
   },
+  profileIconButton: {
+    padding: 4,
+    borderRadius: 16,
+  },
   topBarName: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#ffffff',
     flex: 1,
+    marginTop: 2,
   },
   topBarGreeting: {
     fontSize: 18,
@@ -562,21 +560,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#e0e7ff',
     marginTop: 2,
-  },
-  topBarLogoutButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#dc2626',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ef4444',
-    shadowColor: '#dc2626',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
   },
   greetingBelowBar: {
     margin: 16,
@@ -605,17 +588,21 @@ const styles = StyleSheet.create({
   },
   greetingTextSection: {
     flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 8,
   },
   greetingBelowBarText: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#ffffff',
     marginBottom: 2,
+    textAlign: 'center',
   },
   greetingSubText: {
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.9)',
     fontWeight: '500',
+    textAlign: 'center',
   },
   greetingDecoration: {
     opacity: 0.8,
@@ -797,7 +784,6 @@ const styles = StyleSheet.create({
     padding: 20,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
-    marginBottom: 0,
   },
   overviewIconContainer: {
     width: 48,
@@ -893,7 +879,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   dataCardContent: {
-    padding: 20,
+    padding: 16,
   },
   courseCard: {
     backgroundColor: '#ffffff',
@@ -914,7 +900,6 @@ const styles = StyleSheet.create({
     padding: 16,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
-    marginBottom: 16,
   },
   courseIconContainer: {
     width: 32,
@@ -1003,27 +988,35 @@ const styles = StyleSheet.create({
   progressLabels: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
   },
   progressLabelMin: {
-    fontSize: 12,
-    color: '#6b7280',
-  },
-  progressLabelMid: {
-    fontSize: 12,
-    color: '#374151',
+    fontSize: 10,
+    color: '#9ca3af',
     fontWeight: '500',
   },
-  progressLabelMax: {
-    fontSize: 12,
+  progressLabelMid: {
+    fontSize: 10,
     color: '#6b7280',
+    fontWeight: '600',
+  },
+  progressLabelMax: {
+    fontSize: 10,
+    color: '#9ca3af',
+    fontWeight: '500',
   },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    paddingBottom: 16,
   },
   statItem: {
     width: '50%',
-    padding: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
   },
   statLabel: {
     fontSize: 12,
@@ -1067,7 +1060,7 @@ const styles = StyleSheet.create({
   },
   emptyCard: {
     backgroundColor: '#ffffff',
-    margin: 16,
+    margin: 12,
     marginTop: 0,
     borderRadius: 16,
     shadowColor: '#000',
@@ -1082,46 +1075,47 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 20,
+    padding: 16,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
   },
   emptyIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 8,
   },
   emptyHeaderTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#ffffff',
   },
   emptyContent: {
-    padding: 20,
+    padding: 16,
     alignItems: 'center',
   },
   emptyTitle: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#1f2937',
     marginBottom: 8,
-    marginTop: 16,
+    marginTop: 8,
     textAlign: 'center',
   },
   emptyText: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#6b7280',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 12,
+    lineHeight: 20,
   },
   emptyStatus: {
     backgroundColor: '#f8fafc',
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 6,
+    padding: 8,
   },
   emptyStatusText: {
     fontSize: 14,
@@ -1148,5 +1142,35 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
+  },
+  messageCard: {
+    margin: 16,
+    marginBottom: 8,
+    borderRadius: 16,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  messageIcon: {
+    marginRight: 16,
+  },
+  messageContent: {
+    flex: 1,
+  },
+  messageTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#0369a1',
+    marginBottom: 4,
+  },
+  messageText: {
+    fontSize: 15,
+    color: '#075985',
+    lineHeight: 22,
   },
 })

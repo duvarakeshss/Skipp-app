@@ -69,7 +69,7 @@ export default function RootLayout() {
         />
         <Stack.Screen name="+not-found" />
       </Stack>
-      <StatusBar style="light" backgroundColor="#1e3a8a" />
+      <StatusBar style="light" backgroundColor="#0f172a" hidden={true} />
     </ThemeProvider>
   );
 }

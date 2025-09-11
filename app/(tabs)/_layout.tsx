@@ -25,8 +25,8 @@ export default function TabLayout() {
             position: 'absolute',
           },
           default: {
-            backgroundColor: '#1e3a8a',
-            borderTopColor: '#3b82f6',
+            backgroundColor: '#0f172a',
+            borderTopColor: '#1e40af',
             borderTopWidth: 1,
           },
         }),
