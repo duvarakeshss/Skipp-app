@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useRouter, useLocalSearchParams } from 'expo-router'
-import { getStoredCredentials, clearCredentials } from '../utils/attendanceService'
+import { getStoredCredentials, clearCredentials, getExamSchedule } from '../utils/attendanceService'
 import {
   View,
   Text,
@@ -210,21 +210,10 @@ export default function Timetable() {
           return
         }
 
-        // For now, we'll use a placeholder API call
-        // In production, this would call the actual exam schedule API
-        // const response = await apiPost('/exam-schedule', {
-        //   rollno: credentials.rollNo,
-        //   password: credentials.password
-        // })
+        // Fetch exam schedule from API
+        const examData = await getExamSchedule(credentials.rollNo, credentials.password);
 
-        // Placeholder data for demonstration
-        const placeholderExams: Exam[] = [
-          { COURSE_CODE: 'CS101', DATE: '15-12-24', TIME: '10:00 AM' },
-          { COURSE_CODE: 'MA201', DATE: '18-12-24', TIME: '2:00 PM' },
-          { COURSE_CODE: 'PH301', DATE: '22-12-24', TIME: '9:00 AM' },
-        ]
-
-        setExams(placeholderExams)
+        setExams(examData || [])
         setMessage(null)
       } catch (err: any) {
         console.error("Error fetching exam schedule:", err)

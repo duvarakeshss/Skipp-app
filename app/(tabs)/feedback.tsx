@@ -17,6 +17,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { LinearGradient } from 'expo-linear-gradient'
 import LogoutModal from '../../components/LogoutModal'
 import { sessionManager } from '../../utils/sessionManager'
+import SettingsModal from '../../components/SettingsModal'
+import ProfileMenu from '../../components/ProfileMenu'
+import { notificationService } from '../../utils/notificationService'
 
 const { width } = Dimensions.get('window')
 
@@ -28,6 +31,10 @@ export default function Feedback() {
   const [userName, setUserName] = useState('')
   const [showLogoutModal, setShowLogoutModal] = useState(false)
   const [logoutLoading, setLogoutLoading] = useState(false)
+  const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true)
+  const [examNotificationsEnabled, setExamNotificationsEnabled] = useState(true)
 
   useEffect(() => {
     const checkCredentials = async () => {
@@ -55,6 +62,16 @@ export default function Feedback() {
         console.error('Error fetching user name:', nameError);
         setUserName('User');
       }
+
+      // Load notification preferences
+      try {
+        const notificationsPref = await notificationService.getNotificationsEnabled()
+        const examNotificationsPref = await notificationService.getExamNotificationsEnabled()
+        setNotificationsEnabled(notificationsPref)
+        setExamNotificationsEnabled(examNotificationsPref)
+      } catch (error) {
+        console.error('Error loading notification preferences:', error)
+      }
     }
 
     checkCredentials()
@@ -78,6 +95,34 @@ export default function Feedback() {
 
   const handleLogoutCancel = () => {
     setShowLogoutModal(false)
+  }
+
+  const handleProfileMenuClose = () => {
+    setShowProfileMenu(false)
+  }
+
+  const handleSettingsPress = () => {
+    setShowSettingsModal(true)
+  }
+
+  const handleSettingsClose = () => {
+    setShowSettingsModal(false)
+  }
+
+  const handleLogoutFromMenu = () => {
+    handleLogout()
+  }
+
+  const toggleNotifications = async () => {
+    const newState = !notificationsEnabled
+    setNotificationsEnabled(newState)
+    await notificationService.setNotificationsEnabled(newState)
+  }
+
+  const toggleExamNotifications = async () => {
+    const newState = !examNotificationsEnabled
+    setExamNotificationsEnabled(newState)
+    await notificationService.setExamNotificationsEnabled(newState)
   }
 
   const handleAutoFeedback = async (feedbackIndex: number) => {
@@ -114,7 +159,7 @@ export default function Feedback() {
             <Text style={styles.topBarTitle}>{userName || 'User'}</Text>
             <TouchableOpacity
               style={styles.profileIconButton}
-              onPress={handleLogout}
+              onPress={() => setShowProfileMenu(true)}
             >
               <View style={styles.profileIcon}>
                 <Ionicons name="person-circle" size={40} color="#ffffff" />
@@ -380,6 +425,24 @@ export default function Feedback() {
         onCancel={handleLogoutCancel}
         onConfirm={handleLogoutConfirm}
         loading={logoutLoading}
+      />
+
+      {/* Profile Menu */}
+      <ProfileMenu
+        visible={showProfileMenu}
+        onClose={handleProfileMenuClose}
+        onSettings={handleSettingsPress}
+        onLogout={handleLogoutFromMenu}
+      />
+
+      {/* Settings Modal */}
+      <SettingsModal
+        visible={showSettingsModal}
+        onClose={handleSettingsClose}
+        notificationsEnabled={notificationsEnabled}
+        examNotificationsEnabled={examNotificationsEnabled}
+        onToggleNotifications={toggleNotifications}
+        onToggleExamNotifications={toggleExamNotifications}
       />
     </View>
   )

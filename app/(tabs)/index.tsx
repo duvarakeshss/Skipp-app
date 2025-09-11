@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { getStudentAttendance, greetUser, getStoredCredentials, clearCredentials, getCachedOrFreshData } from '../../utils/attendanceService'
+import { notificationService } from '../../utils/notificationService'
 import {
   View,
   Text,
@@ -17,6 +18,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { LinearGradient } from 'expo-linear-gradient'
 import LogoutModal from '../../components/LogoutModal'
 import { sessionManager } from '../../utils/sessionManager'
+import SettingsModal from '../../components/SettingsModal'
+import ProfileMenu from '../../components/ProfileMenu'
 
 const { width } = Dimensions.get('window')
 
@@ -31,6 +34,10 @@ export default function Home() {
   const [combinedData, setCombinedData] = useState<any[]>([])
   const [showLogoutModal, setShowLogoutModal] = useState(false)
   const [logoutLoading, setLogoutLoading] = useState(false)
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true)
+  const [examNotificationsEnabled, setExamNotificationsEnabled] = useState(true)
+  const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
   const toastShownRef = useRef(false)
 
   useEffect(() => {
@@ -63,6 +70,14 @@ export default function Home() {
       try {
         setLoading(true)
 
+        // Load notification preferences
+        const notificationsPref = await notificationService.getNotificationsEnabled()
+        setNotificationsEnabled(notificationsPref)
+
+        // Load exam notification preferences
+        const examNotificationsPref = await notificationService.getExamNotificationsEnabled()
+        setExamNotificationsEnabled(examNotificationsPref)
+
         // Get user greeting first to verify credentials
         const userGreeting = await getCachedOrFreshData('greeting', credentials.rollNo, credentials.password);
         setGreeting(userGreeting);
@@ -74,6 +89,32 @@ export default function Home() {
 
           // Calculate affordable leaves with default percentage
           calculateCombinedData(data, customPercentage);
+
+          // Extract user name from greeting for notifications
+          const userName = userGreeting.split(',')[1]?.trim().split(' ')[0] || 'Student';
+
+          // Check and send notifications for low attendance courses
+          if (data && Array.isArray(data) && data.length > 0) {
+            // Request notification permissions if not already granted
+            const permissionsGranted = await notificationService.requestPermissions();
+            if (permissionsGranted) {
+              // Convert raw data to combined format for notification checking
+              const combinedForNotification = data
+                .filter((course: any) => course && Array.isArray(course) && course.length >= 6)
+                .map((course: any) => ({
+                  courseCode: course[0],
+                  percentage: course[5]
+                }))
+                .filter(course => course.courseCode && course.percentage);
+
+              if (combinedForNotification.length > 0) {
+                await notificationService.checkAndSendLowAttendanceNotifications(
+                  combinedForNotification,
+                  userName
+                );
+              }
+            }
+          }
         }
       } catch (err: any) {
         console.error('Error loading data:', err)
@@ -188,52 +229,106 @@ export default function Home() {
     setShowLogoutModal(false)
   }
 
+  const toggleNotifications = async () => {
+    const newState = !notificationsEnabled
+    setNotificationsEnabled(newState)
+    await notificationService.setNotificationsEnabled(newState)
+  }
+
+  const toggleExamNotifications = async () => {
+    const newState = !examNotificationsEnabled
+    setExamNotificationsEnabled(newState)
+    await notificationService.setExamNotificationsEnabled(newState)
+  }
+
+  const handleProfileMenuClose = () => {
+    setShowProfileMenu(false)
+  }
+
+  const handleSettingsPress = () => {
+    setShowSettingsModal(true)
+  }
+
+  const handleSettingsClose = () => {
+    setShowSettingsModal(false)
+  }
+
+  const handleLogoutFromMenu = () => {
+    handleLogout()
+  }
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <LinearGradient
-          colors={['#1e3a8a', '#3b82f6']}
+          colors={['#0f172a', '#1e293b', '#334155']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.loadingGradient}
         >
+          {/* Animated background elements */}
+          <View style={styles.loadingBackgroundElements}>
+            <View style={[styles.loadingOrb, styles.loadingOrb1]} />
+            <View style={[styles.loadingOrb, styles.loadingOrb2]} />
+            <View style={[styles.loadingOrb, styles.loadingOrb3]} />
+          </View>
+
           <View style={styles.loadingContent}>
-            <View style={styles.loadingIcon}>
-              <Ionicons name="analytics" size={48} color="#ffffff" />
-            </View>
-            <Text style={styles.loadingTitle}>Loading Your Data</Text>
-            <Text style={styles.loadingSubtitle}>Fetching your attendance information...</Text>
-
-            <View style={styles.loadingAnimation}>
-              <ActivityIndicator size="large" color="#ffffff" />
-              <View style={styles.loadingBar}>
+            {/* Main loading card */}
+            <LinearGradient
+              colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.loadingCard}
+            >
+              <View style={styles.loadingIconContainer}>
                 <LinearGradient
-                  colors={['#ffffff', '#e0e7ff', '#c7d2fe']}
+                  colors={['#3b82f6', '#1d4ed8', '#1e40af']}
                   start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.loadingProgress}
-                />
+                  end={{ x: 1, y: 1 }}
+                  style={styles.loadingIcon}
+                >
+                  <Ionicons name="analytics" size={32} color="#ffffff" />
+                </LinearGradient>
               </View>
-            </View>
 
-            <View style={styles.loadingSteps}>
-              <View style={styles.stepItem}>
-                <View style={styles.stepDot} />
-                <Text style={styles.stepText}>Verifying credentials</Text>
+              <Text style={styles.loadingTitle}>Loading Your Data</Text>
+              <Text style={styles.loadingSubtitle}>Fetching your attendance information...</Text>
+
+              {/* Modern loading animation */}
+              <View style={styles.loadingAnimationContainer}>
+                <View style={styles.loadingSpinner}>
+                  <ActivityIndicator size="large" color="#3b82f6" />
+                </View>
+
+                {/* Progress dots */}
+                <View style={styles.loadingDots}>
+                  <View style={[styles.loadingDot, styles.loadingDot1]} />
+                  <View style={[styles.loadingDot, styles.loadingDot2]} />
+                  <View style={[styles.loadingDot, styles.loadingDot3]} />
+                </View>
               </View>
-              <View style={styles.stepItem}>
-                <View style={styles.stepDot} />
-                <Text style={styles.stepText}>Fetching attendance data</Text>
+
+              {/* Loading steps */}
+              <View style={styles.loadingSteps}>
+                <View style={styles.stepItem}>
+                  <View style={[styles.stepDot, styles.stepDotActive]} />
+                  <Text style={styles.stepText}>Connecting to server</Text>
+                </View>
+                <View style={styles.stepItem}>
+                  <View style={[styles.stepDot, styles.stepDotActive]} />
+                  <Text style={styles.stepText}>Fetching attendance data</Text>
+                </View>
+                <View style={styles.stepItem}>
+                  <View style={styles.stepDot} />
+                  <Text style={styles.stepText}>Processing information</Text>
+                </View>
               </View>
-              <View style={styles.stepItem}>
-                <View style={styles.stepDot} />
-                <Text style={styles.stepText}>Calculating statistics</Text>
-              </View>
-            </View>
+            </LinearGradient>
           </View>
         </LinearGradient>
       </View>
-    )
+    );
   }
 
   return (
@@ -246,7 +341,7 @@ export default function Home() {
             <Text style={styles.topBarName}>{(greeting.split(',')[1]?.trim() || greeting.split(' ')[1] || 'User').replace('!', '')}</Text>
             <TouchableOpacity
               style={styles.profileIconButton}
-              onPress={handleLogout}
+              onPress={() => setShowProfileMenu(true)}
             >
               <View style={styles.profileIcon}>
                 <Ionicons name="person-circle" size={40} color="#ffffff" />
@@ -270,7 +365,8 @@ export default function Home() {
                 <View style={styles.greetingIconContainer}>
                   <Ionicons
                     name={greeting.split(',')[0].includes('Morning') ? 'sunny' :
-                          greeting.split(',')[0].includes('Afternoon') ? 'partly-sunny' : 'moon'}
+                          greeting.split(',')[0].includes('Afternoon') ? 'partly-sunny' :
+                          greeting.split(',')[0].includes('Night') ? 'moon' : 'moon'}
                     size={24}
                     color="#ffffff"
                   />
@@ -368,7 +464,14 @@ export default function Home() {
           {combinedData.length > 0 && (
             <View style={styles.dataCard}>
               <View style={styles.dataCardContent}>
-                {combinedData.map((course, index) => {
+                {/* Sort courses by attendance percentage (low to high) to highlight courses needing attention */}
+                {combinedData
+                  .sort((a, b) => {
+                    const aPercent = parseFloat(a.percentage) || 0;
+                    const bPercent = parseFloat(b.percentage) || 0;
+                    return aPercent - bPercent;
+                  })
+                  .map((course, index) => {
                 const isLowAttendance = parseInt(course.percentage) < 75
                 const canAffordLeaves = course.affordableLeaves >= 0
 
@@ -496,6 +599,24 @@ export default function Home() {
       onConfirm={handleLogoutConfirm}
       loading={logoutLoading}
     />
+
+    {/* Profile Menu */}
+    <ProfileMenu
+      visible={showProfileMenu}
+      onClose={handleProfileMenuClose}
+      onSettings={handleSettingsPress}
+      onLogout={handleLogoutFromMenu}
+    />
+
+    {/* Settings Modal */}
+    <SettingsModal
+      visible={showSettingsModal}
+      onClose={handleSettingsClose}
+      notificationsEnabled={notificationsEnabled}
+      examNotificationsEnabled={examNotificationsEnabled}
+      onToggleNotifications={toggleNotifications}
+      onToggleExamNotifications={toggleExamNotifications}
+    />
     </View>
   )
 }
@@ -575,7 +696,8 @@ const styles = StyleSheet.create({
   greetingContentNew: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
   },
   greetingIconContainer: {
     width: 40,
@@ -584,12 +706,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 16,
   },
   greetingTextSection: {
     flex: 1,
     justifyContent: 'center',
-    paddingHorizontal: 8,
+    alignItems: 'center',
+    paddingHorizontal: 12,
   },
   greetingBelowBarText: {
     fontSize: 18,
@@ -606,6 +729,7 @@ const styles = StyleSheet.create({
   },
   greetingDecoration: {
     opacity: 0.8,
+    marginLeft: 16,
   },
   logoutText: {
     color: '#ffffff',
@@ -624,51 +748,115 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  loadingBackgroundElements: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'hidden',
+  },
+  loadingOrb: {
+    position: 'absolute',
+    borderRadius: 100,
+    opacity: 0.1,
+  },
+  loadingOrb1: {
+    width: 200,
+    height: 200,
+    backgroundColor: '#3b82f6',
+    top: '10%',
+    left: '10%',
+  },
+  loadingOrb2: {
+    width: 150,
+    height: 150,
+    backgroundColor: '#1d4ed8',
+    top: '60%',
+    right: '15%',
+  },
+  loadingOrb3: {
+    width: 100,
+    height: 100,
+    backgroundColor: '#1e40af',
+    bottom: '20%',
+    left: '70%',
+  },
   loadingContent: {
     alignItems: 'center',
     padding: 32,
+    width: '100%',
+    maxWidth: 400,
   },
-  loadingIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
+  loadingCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 24,
+    padding: 32,
     alignItems: 'center',
+    width: '100%',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.3,
+    shadowRadius: 30,
+    elevation: 20,
+  },
+  loadingIconContainer: {
     marginBottom: 24,
   },
+  loadingIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
+  },
   loadingTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 24,
+    fontWeight: '700',
     color: '#ffffff',
     marginBottom: 8,
     textAlign: 'center',
   },
   loadingSubtitle: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: 'rgba(255, 255, 255, 0.8)',
     marginBottom: 32,
     textAlign: 'center',
+    lineHeight: 22,
   },
-  loadingAnimation: {
+  loadingAnimationContainer: {
     alignItems: 'center',
     marginBottom: 32,
   },
-  loadingBar: {
-    width: 200,
-    height: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: 2,
-    marginTop: 20,
-    overflow: 'hidden',
+  loadingSpinner: {
+    marginBottom: 20,
   },
-  loadingProgress: {
-    height: '100%',
-    borderRadius: 2,
+  loadingDots: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(59, 130, 246, 0.5)',
+    marginHorizontal: 4,
+  },
+  loadingDot1: {
+    backgroundColor: '#3b82f6',
+  },
+  loadingDot2: {
+    backgroundColor: '#3b82f6',
+  },
+  loadingDot3: {
+    backgroundColor: 'rgba(59, 130, 246, 0.3)',
   },
   loadingSteps: {
     width: '100%',
-    maxWidth: 280,
   },
   stepItem: {
     flexDirection: 'row',
@@ -679,8 +867,16 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
     marginRight: 12,
+  },
+  stepDotActive: {
+    backgroundColor: '#3b82f6',
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 6,
+    elevation: 4,
   },
   stepText: {
     fontSize: 14,

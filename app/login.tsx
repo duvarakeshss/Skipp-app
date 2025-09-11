@@ -1,7 +1,8 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, Keyboard } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, Keyboard, View, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import styled from 'styled-components/native';
+import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, LinearGradient, Stop, Circle, Path } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -215,6 +216,39 @@ const CopyrightText = styled.Text`
   font-size: 14px;
 `;
 
+const LoadingOverlay = styled.View`
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.8);
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+`;
+
+const LoadingContainer = styled.View`
+  width: 90%;
+  max-width: 320px;
+  align-items: center;
+`;
+
+const LoadingTitle = styled.Text`
+  font-size: 20px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 8px;
+  text-align: center;
+`;
+
+const LoadingSubtitle = styled.Text`
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.8);
+  text-align: center;
+  line-height: 20px;
+`;
+
 export default function LoginScreen() {
   const [rollNo, setRollNo] = useState('');
   const [password, setPassword] = useState('');
@@ -325,11 +359,24 @@ export default function LoginScreen() {
       router.replace('/(tabs)');
 
     } catch (err: any) {
+      console.error('Login error:', err);
+
       // Handle specific error messages from the service
       if (err.message) {
-        setError(err.message);
+        // Check for specific error types and provide user-friendly messages
+        if (err.message.includes('Invalid roll number') || err.message.includes('roll number format')) {
+          setError('Please check your roll number and try again.');
+        } else if (err.message.includes('Password must be') || err.message.includes('password')) {
+          setError('Please check your password and try again.');
+        } else if (err.message.includes('HTTP error') || err.message.includes('Failed to')) {
+          setError('Login failed. Please check your roll number and password, then try again.');
+        } else if (err.message.includes('Network') || err.message.includes('connection')) {
+          setError('Network error. Please check your internet connection and try again.');
+        } else {
+          setError(err.message);
+        }
       } else {
-        setError('Login failed. Please check your credentials and try again.');
+        setError('Login failed. Please check your roll number and password, then try again.');
       }
     } finally {
       setIsLoading(false);
@@ -351,6 +398,49 @@ export default function LoginScreen() {
         >
           <Overlay />
         </BackgroundImage>
+
+        {/* Full Screen Loading Overlay */}
+        {isLoading && (
+          <LoadingOverlay>
+            <LoadingContainer>
+              <ExpoLinearGradient
+                colors={['rgba(15, 23, 42, 0.95)', 'rgba(30, 41, 59, 0.95)', 'rgba(51, 65, 85, 0.95)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ borderRadius: 20, padding: 32, alignItems: 'center' }}
+              >
+                <View style={{ marginBottom: 24 }}>
+                  <ExpoLinearGradient
+                    colors={['#3b82f6', '#1d4ed8', '#1e40af']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={{
+                      width: 64,
+                      height: 64,
+                      borderRadius: 32,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 8 },
+                      shadowOpacity: 0.3,
+                      shadowRadius: 16,
+                      elevation: 8,
+                    }}
+                  >
+                    <Ionicons name="log-in" size={32} color="#ffffff" />
+                  </ExpoLinearGradient>
+                </View>
+
+                <LoadingTitle>Logging you in...</LoadingTitle>
+                <LoadingSubtitle>Please wait while we verify your credentials</LoadingSubtitle>
+
+                <View style={{ marginTop: 32 }}>
+                  <ActivityIndicator size="large" color="#3b82f6" />
+                </View>
+              </ExpoLinearGradient>
+            </LoadingContainer>
+          </LoadingOverlay>
+        )}
 
         {/* Main Content */}
         <MainContent isKeyboardVisible={isKeyboardVisible}>

@@ -282,8 +282,10 @@ export const greetUser = async (rollNo?: string, password?: string) => {
       timeGreeting = 'Good Morning';
     } else if (hour < 18) {
       timeGreeting = 'Good Afternoon';
-    } else {
+    } else if (hour < 20) {
       timeGreeting = 'Good Evening';
+    } else {
+      timeGreeting = 'Good Night';
     }
 
     if (isBirthday) {
@@ -303,8 +305,10 @@ export const greetUser = async (rollNo?: string, password?: string) => {
       greeting = 'Good Morning';
     } else if (hour < 18) {
       greeting = 'Good Afternoon';
-    } else {
+    } else if (hour < 20) {
       greeting = 'Good Evening';
+    } else {
+      greeting = 'Good Night';
     }
 
     return `${greeting}, ${fallbackRollNo}!`;
