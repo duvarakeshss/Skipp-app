@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useRouter, useLocalSearchParams } from 'expo-router'
-import { getStudentAttendance, greetUser, getStoredCredentials, clearCredentials } from '../../utils/attendanceService'
+import { getStudentAttendance, greetUser, getStoredCredentials, clearCredentials, getCachedOrFreshData } from '../../utils/attendanceService'
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { LinearGradient } from 'expo-linear-gradient'
 import LogoutModal from '../../components/LogoutModal'
+import { sessionManager } from '../../utils/sessionManager'
 
 const { width } = Dimensions.get('window')
 
@@ -63,16 +64,16 @@ export default function Home() {
         setLoading(true)
 
         // Get user greeting first to verify credentials
-        const userGreeting = await greetUser(credentials.rollNo, credentials.password)
-        setGreeting(userGreeting)
+        const userGreeting = await getCachedOrFreshData('greeting', credentials.rollNo, credentials.password);
+        setGreeting(userGreeting);
 
         // Only fetch attendance data if greeting was successful
         if (userGreeting) {
-          const data = await getStudentAttendance(credentials.rollNo, credentials.password)
-          setAttendanceData(data)
+          const data = await getCachedOrFreshData('attendance', credentials.rollNo, credentials.password);
+          setAttendanceData(data);
 
           // Calculate affordable leaves with default percentage
-          calculateCombinedData(data, customPercentage)
+          calculateCombinedData(data, customPercentage);
         }
       } catch (err: any) {
         console.error('Error loading data:', err)
@@ -174,14 +175,7 @@ export default function Home() {
   const handleLogoutConfirm = async () => {
     setLogoutLoading(true)
     try {
-      await clearCredentials()
-      // Clear saved login credentials
-      try {
-        await AsyncStorage.removeItem('saved_rollno')
-        await AsyncStorage.removeItem('saved_password')
-      } catch (storageError) {
-        console.error('Error clearing saved credentials:', storageError)
-      }
+      await sessionManager.logout()
       router.replace('/login')
     } catch (error) {
       console.error('Error during logout:', error)
@@ -1070,9 +1064,6 @@ const styles = StyleSheet.create({
     elevation: 4,
     borderWidth: 1,
     borderColor: '#e2e8f0',
-  },
-  dataCardContent: {
-    padding: 20,
   },
   emptyCard: {
     backgroundColor: '#ffffff',

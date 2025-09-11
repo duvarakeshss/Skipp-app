@@ -398,9 +398,277 @@ export const autoFeedback = async (rollNo?: string, password?: string, feedbackI
   }
 };
 
-// Export secure storage utilities
-export const clearCredentials = secureStorage.clearCredentials;
-export const getStoredCredentials = secureStorage.getCredentials;
+// Data caching utilities
+export const dataCache = {
+  // Cache keys
+  ATTENDANCE_DATA: 'nimora_attendance_data',
+  EXAM_SCHEDULE: 'nimora_exam_schedule',
+  USER_GREETING: 'nimora_user_greeting',
+  LAST_UPDATE: 'nimora_last_update',
 
-// Export additional API helpers
-export { payloadSecurity };
+  // Cache data with timestamp
+  async setAttendanceData(data: any[]): Promise<void> {
+    try {
+      const cacheData = {
+        data,
+        timestamp: Date.now(),
+        type: 'attendance'
+      };
+      await AsyncStorage.setItem(this.ATTENDANCE_DATA, JSON.stringify(cacheData));
+      await AsyncStorage.setItem(this.LAST_UPDATE, Date.now().toString());
+    } catch (error) {
+      console.error('Error caching attendance data:', error);
+    }
+  },
+
+  async getAttendanceData(): Promise<any[] | null> {
+    try {
+      const cached = await AsyncStorage.getItem(this.ATTENDANCE_DATA);
+      if (!cached) return null;
+
+      const cacheData = JSON.parse(cached);
+      // Check if data is less than 24 hours old
+      const isValid = Date.now() - cacheData.timestamp < 24 * 60 * 60 * 1000;
+      return isValid ? cacheData.data : null;
+    } catch (error) {
+      console.error('Error retrieving cached attendance data:', error);
+      return null;
+    }
+  },
+
+  async setExamSchedule(data: any[]): Promise<void> {
+    try {
+      const cacheData = {
+        data,
+        timestamp: Date.now(),
+        type: 'exam_schedule'
+      };
+      await AsyncStorage.setItem(this.EXAM_SCHEDULE, JSON.stringify(cacheData));
+      await AsyncStorage.setItem(this.LAST_UPDATE, Date.now().toString());
+    } catch (error) {
+      console.error('Error caching exam schedule:', error);
+    }
+  },
+
+  async getExamSchedule(): Promise<any[] | null> {
+    try {
+      const cached = await AsyncStorage.getItem(this.EXAM_SCHEDULE);
+      if (!cached) return null;
+
+      const cacheData = JSON.parse(cached);
+      // Check if data is less than 24 hours old
+      const isValid = Date.now() - cacheData.timestamp < 24 * 60 * 60 * 1000;
+      return isValid ? cacheData.data : null;
+    } catch (error) {
+      console.error('Error retrieving cached exam schedule:', error);
+      return null;
+    }
+  },
+
+  async setUserGreeting(data: string): Promise<void> {
+    try {
+      const cacheData = {
+        data,
+        timestamp: Date.now(),
+        type: 'greeting'
+      };
+      await AsyncStorage.setItem(this.USER_GREETING, JSON.stringify(cacheData));
+    } catch (error) {
+      console.error('Error caching user greeting:', error);
+    }
+  },
+
+  async getUserGreeting(): Promise<string | null> {
+    try {
+      const cached = await AsyncStorage.getItem(this.USER_GREETING);
+      if (!cached) return null;
+
+      const cacheData = JSON.parse(cached);
+      // Check if data is less than 24 hours old
+      const isValid = Date.now() - cacheData.timestamp < 24 * 60 * 60 * 1000;
+      return isValid ? cacheData.data : null;
+    } catch (error) {
+      console.error('Error retrieving cached user greeting:', error);
+      return null;
+    }
+  },
+
+  // Clear all cached data
+  async clearAllCache(): Promise<void> {
+    try {
+      await AsyncStorage.multiRemove([
+        this.ATTENDANCE_DATA,
+        this.EXAM_SCHEDULE,
+        this.USER_GREETING,
+        this.LAST_UPDATE
+      ]);
+    } catch (error) {
+      console.error('Error clearing cache:', error);
+    }
+  }
+};
+
+// Function to fetch and cache all data at once
+export const fetchAndCacheAllData = async (rollNo?: string, password?: string): Promise<void> => {
+  try {
+    console.log('Fetching and caching all data...');
+
+    // Get credentials
+    let credentials: { rollNo: string; password: string } | null = null;
+
+    if (rollNo && password) {
+      credentials = {
+        rollNo: securityUtils.sanitizeInput(rollNo),
+        password: securityUtils.sanitizeInput(password)
+      };
+    } else {
+      credentials = await secureStorage.getCredentials();
+    }
+
+    if (!credentials) {
+      throw new Error('No credentials available');
+    }
+
+    // Fetch all data in parallel
+    const [attendanceData, examSchedule, userGreeting] = await Promise.allSettled([
+      getStudentAttendance(credentials.rollNo, credentials.password),
+      getExamSchedule(credentials.rollNo, credentials.password),
+      greetUser(credentials.rollNo, credentials.password)
+    ]);
+
+    // Cache successful results
+    if (attendanceData.status === 'fulfilled') {
+      await dataCache.setAttendanceData(attendanceData.value);
+      console.log('Attendance data cached successfully');
+    } else {
+      console.error('Failed to fetch attendance data:', attendanceData.reason);
+    }
+
+    if (examSchedule.status === 'fulfilled') {
+      await dataCache.setExamSchedule(examSchedule.value);
+      console.log('Exam schedule cached successfully');
+    } else {
+      console.error('Failed to fetch exam schedule:', examSchedule.reason);
+    }
+
+    if (userGreeting.status === 'fulfilled') {
+      await dataCache.setUserGreeting(userGreeting.value);
+      console.log('User greeting cached successfully');
+    } else {
+      console.error('Failed to fetch user greeting:', userGreeting.reason);
+    }
+
+    console.log('Data fetching and caching completed');
+  } catch (error) {
+    console.error('Error in fetchAndCacheAllData:', error);
+    throw error;
+  }
+};
+
+// Function to get cached data or fetch fresh data
+export const getCachedOrFreshData = async (dataType: 'attendance' | 'exam_schedule' | 'greeting', rollNo?: string, password?: string) => {
+  try {
+    let cachedData = null;
+
+    switch (dataType) {
+      case 'attendance':
+        cachedData = await dataCache.getAttendanceData();
+        if (!cachedData) {
+          cachedData = await getStudentAttendance(rollNo, password);
+          await dataCache.setAttendanceData(cachedData);
+        }
+        break;
+      case 'exam_schedule':
+        cachedData = await dataCache.getExamSchedule();
+        if (!cachedData) {
+          cachedData = await getExamSchedule(rollNo, password);
+          await dataCache.setExamSchedule(cachedData);
+        }
+        break;
+      case 'greeting':
+        cachedData = await dataCache.getUserGreeting();
+        if (!cachedData) {
+          cachedData = await greetUser(rollNo, password);
+          await dataCache.setUserGreeting(cachedData);
+        }
+        break;
+    }
+
+    return cachedData;
+  } catch (error) {
+    console.error(`Error getting ${dataType} data:`, error);
+    throw error;
+  }
+};
+
+// Function to validate existing session
+export const validateSession = async (): Promise<boolean> => {
+  try {
+    const credentials = await getStoredCredentials();
+
+    if (!credentials) {
+      return false;
+    }
+
+    // Validate credentials by making a test API call (user greeting)
+    await greetUser(credentials.rollNo, credentials.password);
+    return true;
+  } catch (error) {
+    console.warn('Session validation failed:', error);
+    // Clear invalid credentials
+    await secureStorage.clearCredentials();
+    return false;
+  }
+};
+
+// Function to get stored credentials (with migration support)
+export const getStoredCredentials = async (): Promise<{ rollNo: string; password: string } | null> => {
+  try {
+    let credentials = await secureStorage.getCredentials();
+
+    // If no secure credentials, try to migrate from old storage
+    if (!credentials) {
+      const oldRollNo = await AsyncStorage.getItem('saved_rollno');
+      const oldPassword = await AsyncStorage.getItem('saved_password');
+
+      if (oldRollNo && oldPassword) {
+        // Migrate old credentials to new secure storage
+        await secureStorage.setCredentials(oldRollNo, oldPassword);
+        credentials = { rollNo: oldRollNo, password: oldPassword };
+
+        // Clear old storage
+        await AsyncStorage.multiRemove(['saved_rollno', 'saved_password']);
+      }
+    }
+
+    return credentials;
+  } catch (error) {
+    console.warn('Error retrieving stored credentials:', error);
+    return null;
+  }
+};
+
+// Function to check if user is logged in (has stored credentials)
+export const isLoggedIn = async (): Promise<boolean> => {
+  try {
+    const credentials = await getStoredCredentials();
+    return credentials !== null;
+  } catch (error) {
+    console.warn('Error checking login status:', error);
+    return false;
+  }
+};
+
+// Function to clear all stored credentials
+export const clearCredentials = async (): Promise<void> => {
+  try {
+    // Clear secure storage
+    await secureStorage.clearCredentials();
+
+    // Also clear old storage keys for consistency
+    await AsyncStorage.multiRemove(['saved_rollno', 'saved_password']);
+  } catch (error) {
+    console.warn('Error clearing credentials:', error);
+    throw error;
+  }
+};

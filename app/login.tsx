@@ -6,6 +6,9 @@ import Svg, { Defs, LinearGradient, Stop, Circle, Path } from 'react-native-svg'
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loginUser } from '../utils/attendanceService';
+import { sessionManager } from '../utils/sessionManager';
+import { fetchAndCacheAllData } from '../utils/attendanceService';
+import { initializeBackgroundRefresh } from '../utils/backgroundRefresh';
 
 // Logo Component
 const LogoSVG = () => (
@@ -241,25 +244,34 @@ export default function LoginScreen() {
     };
   }, []);
 
-  // Load saved credentials on component mount
+  // Check for existing valid session on component mount
   useEffect(() => {
-    const loadSavedCredentials = async () => {
+    const checkExistingSession = async () => {
       try {
-        const savedRollNo = await AsyncStorage.getItem('saved_rollno');
-        const savedPassword = await AsyncStorage.getItem('saved_password');
+        const sessionState = sessionManager.getSessionState();
+
+        if (sessionState.isAuthenticated && !sessionState.isLoading) {
+          // Valid session exists, redirect to main app
+          router.replace('/(tabs)');
+          return;
+        }
+
+        // Load saved credentials into form (if any) - use the secure storage
+        const savedRollNo = await AsyncStorage.getItem('nimora_rollno');
+        const savedPassword = await AsyncStorage.getItem('nimora_auth');
 
         if (savedRollNo) {
           setRollNo(savedRollNo);
         }
         if (savedPassword) {
-          setPassword(savedPassword);
+          setPassword(atob(savedPassword)); // Decode from base64
         }
       } catch (error) {
-        console.error('Error loading saved credentials:', error);
+        console.error('Error checking existing session:', error);
       }
     };
 
-    loadSavedCredentials();
+    checkExistingSession();
   }, []);
 
   const handleLogin = async () => {
@@ -277,17 +289,40 @@ export default function LoginScreen() {
       // Call the login service (it handles its own validation and error throwing)
       await loginUser(rollNo.trim(), password);
 
-      // Save credentials locally for future logins
+      // Fetch and cache all data for offline use
+      try {
+        console.log('Fetching initial data...');
+        await fetchAndCacheAllData(rollNo.trim(), password);
+        console.log('Initial data fetch completed');
+      } catch (dataError) {
+        console.warn('Failed to fetch initial data, but login successful:', dataError);
+        // Don't block login if data fetch fails
+      }
+
+      // Initialize background refresh system
+      try {
+        await initializeBackgroundRefresh();
+        console.log('Background refresh system initialized');
+      } catch (refreshError) {
+        console.warn('Failed to initialize background refresh:', refreshError);
+        // Don't block login if background refresh fails
+      }
+
+      // Save credentials locally for future logins (both old and new format for compatibility)
       try {
         await AsyncStorage.setItem('saved_rollno', rollNo.trim());
         await AsyncStorage.setItem('saved_password', password);
+        await AsyncStorage.setItem('session_timestamp', Date.now().toString());
+
+        // Update session manager
+        await sessionManager.login(rollNo.trim(), password);
       } catch (storageError) {
         console.error('Error saving credentials:', storageError);
         // Don't block login if storage fails
       }
 
       // Navigate directly to home page after successful login
-      router.push('/(tabs)');
+      router.replace('/(tabs)');
 
     } catch (err: any) {
       // Handle specific error messages from the service

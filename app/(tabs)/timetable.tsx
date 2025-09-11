@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useRouter, useLocalSearchParams } from 'expo-router'
-import { getStoredCredentials, clearCredentials, getExamSchedule, greetUser } from '../../utils/attendanceService'
+import { getStoredCredentials, clearCredentials, getExamSchedule, greetUser, getCachedOrFreshData } from '../../utils/attendanceService'
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { LinearGradient } from 'expo-linear-gradient'
 import LogoutModal from '../../components/LogoutModal'
+import { sessionManager } from '../../utils/sessionManager'
 
 const { width } = Dimensions.get('window')
 
@@ -281,16 +282,16 @@ export default function Timetable() {
 
         // Get user name for display
         try {
-          const greeting = await greetUser(credentials.rollNo, credentials.password)
-          const name = (greeting.split(',')[1]?.trim() || greeting.split(' ')[1] || 'User').replace('!', '')
-          setUserName(name)
+          const greeting = await getCachedOrFreshData('greeting', credentials.rollNo, credentials.password);
+          const name = (greeting.split(',')[1]?.trim() || greeting.split(' ')[1] || 'User').replace('!', '');
+          setUserName(name);
         } catch (nameError) {
-          console.error('Error fetching user name:', nameError)
-          setUserName('User')
+          console.error('Error fetching user name:', nameError);
+          setUserName('User');
         }
 
-        // Get exam schedule from API
-        const examData = await getExamSchedule(credentials.rollNo, credentials.password);
+        // Get exam schedule from cache or API
+        const examData = await getCachedOrFreshData('exam_schedule', credentials.rollNo, credentials.password);
 
         if (examData && examData.length > 0) {
           setExams(examData);
@@ -317,14 +318,7 @@ export default function Timetable() {
   const handleLogoutConfirm = async () => {
     setLogoutLoading(true)
     try {
-      await clearCredentials()
-      // Clear saved login credentials
-      try {
-        await AsyncStorage.removeItem('saved_rollno')
-        await AsyncStorage.removeItem('saved_password')
-      } catch (storageError) {
-        console.error('Error clearing saved credentials:', storageError)
-      }
+      await sessionManager.logout()
       router.replace('/login')
     } catch (error) {
       console.error('Error during logout:', error)
