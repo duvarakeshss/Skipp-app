@@ -36,6 +36,18 @@
           "color": "#ffffff",
           "defaultChannel": "default"
         }
+      ],
+      [
+        "expo-task-manager",
+        {
+          "taskManager": {
+            "background-refresh-task": {
+              "taskName": "background-refresh-task",
+              "taskType": "background-fetch",
+              "minimumInterval": 900
+            }
+          }
+        }
       ]
     ],
     "notification": {
