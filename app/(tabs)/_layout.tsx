@@ -46,6 +46,20 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="internals"
+        options={{
+          title: 'Internals',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="chart.bar.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="cgpa"
+        options={{
+          title: 'CGPA',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="school.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="feedback"
         options={{
           title: 'Feedback',

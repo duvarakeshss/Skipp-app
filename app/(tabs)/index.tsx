@@ -7,11 +7,14 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   Alert,
   ActivityIndicator,
   StyleSheet,
   Dimensions,
-  Platform
+  Platform,
+  PanResponder,
+  PanResponderInstance
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -209,6 +212,60 @@ export default function Home() {
     calculateCombinedData(attendanceData, newPercentage)
   }
 
+  const [isDragging, setIsDragging] = useState(false)
+  const sliderRef = useRef<View>(null)
+  const sliderWidth = useRef(0)
+  const sliderX = useRef(0)
+
+  // Create PanResponder for better touch handling
+  const panResponder = useRef<PanResponderInstance>(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (evt) => {
+        setIsDragging(true)
+        // Measure slider position and dimensions
+        if (sliderRef.current) {
+          sliderRef.current.measure((x, y, width, height, pageX, pageY) => {
+            sliderWidth.current = width
+            sliderX.current = pageX
+          })
+        }
+      },
+      onPanResponderMove: (evt, gestureState) => {
+        if (sliderWidth.current > 0) {
+          const touchX = evt.nativeEvent.pageX
+          const relativeX = touchX - sliderX.current
+          const percentage = Math.max(0, Math.min(1, relativeX / sliderWidth.current))
+          const newValue = Math.round(50 + (percentage * 50))
+          const finalValue = Math.max(50, Math.min(100, newValue))
+          setCustomPercentage(finalValue)
+        }
+      },
+      onPanResponderRelease: () => {
+        setIsDragging(false)
+        calculateCombinedData(attendanceData, customPercentage)
+      },
+      onPanResponderTerminate: () => {
+        setIsDragging(false)
+      }
+    })
+  )
+
+  const handleSliderTouch = (event: any) => {
+    if (sliderRef.current) {
+      sliderRef.current.measure((x: number, y: number, width: number, height: number, pageX: number, pageY: number) => {
+        const touchX = event.nativeEvent.pageX
+        const relativeX = touchX - pageX
+        const percentage = Math.max(0, Math.min(1, relativeX / width))
+        const newValue = Math.round(50 + (percentage * 50))
+        const finalValue = Math.max(50, Math.min(100, newValue))
+        setCustomPercentage(finalValue)
+        calculateCombinedData(attendanceData, finalValue)
+      })
+    }
+  }
+
   const handleLogout = () => {
     setShowLogoutModal(true)
   }
@@ -402,21 +459,9 @@ export default function Home() {
               </LinearGradient>
             )}
 
-          {/* Attendance Overview */}
+          {/* Maintenance Target */}
           {combinedData.length > 0 && (
             <View style={styles.overviewCard}>
-              <LinearGradient
-                colors={['#1e3a8a', '#3b82f6', '#60a5fa']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.overviewHeader}
-              >
-                <View style={styles.overviewIconContainer}>
-                  <Ionicons name="document-text" size={24} color="#ffffff" />
-                </View>
-                <Text style={styles.overviewTitle}>Attendance Overview</Text>
-              </LinearGradient>
-
               <View style={styles.percentageContainer}>
                 <View style={styles.percentageHeader}>
                   <View style={styles.percentageIconContainer}>
@@ -428,33 +473,45 @@ export default function Home() {
                   </View>
                 </View>
 
-                {/* Percentage Slider */}
+                {/* Percentage Dragger */}
                 <View style={styles.sliderContainer}>
-                  <View style={styles.sliderTrack}>
-                    {[50, 60, 70, 80, 90, 100].map((value) => (
-                      <TouchableOpacity
-                        key={value}
-                        style={styles.sliderTick}
-                        onPress={() => handlePercentageChange(value)}
-                      >
-                        <View style={[
-                          styles.sliderTickMark,
-                          customPercentage === value && styles.sliderTickMarkActive
-                        ]} />
-                      </TouchableOpacity>
-                    ))}
+                  <View
+                    ref={sliderRef}
+                    style={styles.draggerTrack}
+                    {...panResponder.current.panHandlers}
+                  >
+                    <View style={styles.draggerRail} />
+                    <View
+                      style={[
+                        styles.draggerProgress,
+                        { width: `${((customPercentage - 50) / 50) * 100}%` }
+                      ]}
+                    />
+                    <View
+                      style={[
+                        styles.draggerThumb,
+                        {
+                          left: `${((customPercentage - 50) / 50) * 100}%`,
+                          marginLeft: -30, // Half of thumb width for center alignment
+                        }
+                      ]}
+                    >
+                      <View style={[styles.draggerThumbInner, isDragging && styles.draggerThumbDragging]}>
+                        <Text style={styles.draggerThumbText}>{customPercentage}%</Text>
+                      </View>
+                    </View>
                   </View>
-                  <View style={styles.sliderLabels}>
-                    <Text style={styles.sliderLabel}>50%</Text>
-                    <Text style={styles.sliderLabel}>60%</Text>
-                    <Text style={styles.sliderLabel}>70%</Text>
-                    <Text style={styles.sliderLabel}>80%</Text>
-                    <Text style={styles.sliderLabel}>90%</Text>
-                    <Text style={styles.sliderLabel}>100%</Text>
+                  <View style={styles.draggerLabels}>
+                    <Text style={styles.draggerLabel}>50%</Text>
+                    <Text style={styles.draggerLabel}>60%</Text>
+                    <Text style={styles.draggerLabel}>70%</Text>
+                    <Text style={styles.draggerLabel}>80%</Text>
+                    <Text style={styles.draggerLabel}>90%</Text>
+                    <Text style={styles.draggerLabel}>100%</Text>
                   </View>
                 </View>
                 <Text style={styles.sliderHint}>
-                  Tap on the values above to adjust your attendance maintenance target.
+                  Drag the slider to adjust your attendance maintenance target.
                 </Text>
               </View>
             </View>
@@ -491,12 +548,6 @@ export default function Home() {
                         styles.statusBadge,
                         canAffordLeaves ? styles.statusGood : styles.statusWarning
                       ]}>
-                        <Ionicons
-                          name={canAffordLeaves ? "checkmark-circle" : "warning"}
-                          size={14}
-                          color={canAffordLeaves ? "#166534" : "#92400e"}
-                          style={{ marginRight: 4 }}
-                        />
                         <Text style={[
                           styles.statusText,
                           canAffordLeaves ? styles.statusTextGood : styles.statusTextWarning
@@ -535,27 +586,28 @@ export default function Home() {
 
                     {/* Stats Grid */}
                     <View style={styles.statsGrid}>
-                      <View style={styles.statItem}>
+                      <View style={[styles.statItem, styles.totalClassesBox]}>
                         <Text style={styles.statLabel}>Total Classes</Text>
-                        <Text style={styles.statValue}>{course.totalClasses}</Text>
+                        <Text style={[styles.statValue, styles.totalClassesValue]}>{course.totalClasses}</Text>
                       </View>
 
-                      <View style={styles.statItem}>
+                      <View style={[styles.statItem, styles.presentBox]}>
                         <Text style={styles.statLabel}>Present</Text>
-                        <Text style={styles.statValueGood}>{course.present}</Text>
+                        <Text style={[styles.statValueGood, styles.presentValue]}>{course.present}</Text>
                       </View>
 
-                      <View style={styles.statItem}>
+                      <View style={[styles.statItem, styles.absentBox]}>
                         <Text style={styles.statLabel}>Absent</Text>
-                        <Text style={styles.statValueWarning}>{course.absent}</Text>
+                        <Text style={[styles.statValueWarning, styles.absentValue]}>{course.absent}</Text>
                       </View>
 
-                      <View style={styles.statItem}>
+                      <View style={[styles.statItem, styles.leavesBox]}>
                         <Text style={styles.statLabel}>Leaves</Text>
                         <View style={styles.leavesContainer}>
                           <Text style={[
                             styles.statValue,
-                            canAffordLeaves ? styles.statValueGood : styles.statValueWarning
+                            canAffordLeaves ? styles.statValueGood : styles.statValueWarning,
+                            styles.leavesValue
                           ]}>
                             {course.affordableLeaves >= 0 ? course.affordableLeaves : Math.abs(course.affordableLeaves)}
                           </Text>
@@ -995,6 +1047,21 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#1f2937',
   },
+  overviewHeaderPlain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    backgroundColor: '#f8fafc',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  overviewTitlePlain: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#374151',
+  },
   percentageContainer: {
     backgroundColor: '#f8fafc',
     borderRadius: 12,
@@ -1074,6 +1141,83 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     textAlign: 'center',
   },
+  draggerTrack: {
+    position: 'relative',
+    height: 40,
+    marginBottom: 16,
+    justifyContent: 'center',
+    marginHorizontal: 30,
+  },
+  draggerRail: {
+    height: 6,
+    backgroundColor: '#e2e8f0',
+    borderRadius: 3,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: '50%',
+    marginTop: -3,
+  },
+  draggerProgress: {
+    height: 6,
+    backgroundColor: '#3b82f6',
+    borderRadius: 3,
+    position: 'absolute',
+    left: 0,
+    top: '50%',
+    marginTop: -3,
+  },
+  draggerThumb: {
+    position: 'absolute',
+    width: 64,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+    top: '50%',
+    marginTop: -18,
+  },
+  draggerThumbInner: {
+    width: 54,
+    height: 32,
+    backgroundColor: '#10b981',
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 6,
+    borderWidth: 2,
+    borderColor: '#ffffff',
+  },
+  draggerThumbDragging: {
+    backgroundColor: '#059669',
+    transform: [{ scale: 1.15 }],
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
+    borderColor: '#f0fdf4',
+  },
+  draggerThumbText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: 'bold',
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  draggerLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 30, // Account for margins
+  },
+  draggerLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontWeight: '500',
+  },
   dataCardContent: {
     padding: 16,
   },
@@ -1118,24 +1262,26 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   statusGood: {
-    backgroundColor: '#dcfce7',
+    backgroundColor: '#064e3b',
     borderWidth: 1,
-    borderColor: '#bbf7d0',
+    borderColor: '#065f46',
   },
   statusWarning: {
-    backgroundColor: '#fef3c7',
+    backgroundColor: '#fee2e2',
     borderWidth: 1,
-    borderColor: '#fde68a',
+    borderColor: '#fca5a5',
   },
   statusText: {
     fontSize: 12,
     fontWeight: '600',
   },
   statusTextGood: {
-    color: '#166534',
+    color: '#ffffff',
+    fontWeight: 'bold',
   },
   statusTextWarning: {
-    color: '#92400e',
+    color: '#ffffff',
+    fontWeight: 'bold',
   },
   progressContainer: {
     backgroundColor: '#f8fafc',
@@ -1162,7 +1308,7 @@ const styles = StyleSheet.create({
     color: '#10b981',
   },
   progressValueWarning: {
-    color: '#f59e0b',
+    color: '#dc2626',
   },
   progressBar: {
     height: 8,
@@ -1179,7 +1325,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#10b981',
   },
   progressFillWarning: {
-    backgroundColor: '#f59e0b',
+    backgroundColor: '#dc2626',
   },
   progressLabels: {
     flexDirection: 'row',
@@ -1189,55 +1335,99 @@ const styles = StyleSheet.create({
   },
   progressLabelMin: {
     fontSize: 10,
-    color: '#9ca3af',
-    fontWeight: '500',
+    color: '#374151',
+    fontWeight: '600',
   },
   progressLabelMid: {
     fontSize: 10,
-    color: '#6b7280',
+    color: '#374151',
     fontWeight: '600',
   },
   progressLabelMax: {
     fontSize: 10,
-    color: '#9ca3af',
-    fontWeight: '500',
+    color: '#374151',
+    fontWeight: '600',
   },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     paddingHorizontal: 16,
     paddingBottom: 16,
+    gap: 12,
   },
   statItem: {
-    width: '50%',
+    width: '48%', // Slightly less than 50% to account for gap
     paddingHorizontal: 8,
     paddingVertical: 12,
     alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  totalClassesBox: {
+    backgroundColor: '#fef3c7',
+    borderColor: '#fbbf24',
+  },
+  presentBox: {
+    backgroundColor: '#dcfce7',
+    borderColor: '#10b981',
+  },
+  absentBox: {
+    backgroundColor: '#fee2e2',
+    borderColor: '#ef4444',
+  },
+  leavesBox: {
+    backgroundColor: '#f3e8ff',
+    borderColor: '#a855f7',
+  },
+  totalClassesValue: {
+    color: '#92400e',
+  },
+  presentValue: {
+    color: '#047857',
+  },
+  absentValue: {
+    color: '#dc2626',
+  },
+  leavesValue: {
+    color: '#6b21a8',
   },
   statLabel: {
     fontSize: 12,
-    color: '#6b7280',
+    color: '#374151',
     marginBottom: 4,
     textAlign: 'center',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   statValue: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: '#111827',
     textAlign: 'center',
   },
   statValueGood: {
     color: '#10b981',
+    fontWeight: 'bold',
   },
   statValueWarning: {
-    color: '#f59e0b',
+    color: '#dc2626',
+    fontWeight: 'bold',
   },
   leavesContainer: {
     alignItems: 'center',
   },
   attendText: {
     fontSize: 10,
-    color: '#f59e0b',
+    color: '#dc2626',
     fontWeight: '600',
     marginTop: 2,
   },

@@ -23,6 +23,8 @@ const MAPPING = {
   'calendar.badge.clock': 'schedule',
   'calendar.badge.plus': 'event-note',
   'feedback': 'feedback',
+  'chart.bar.fill': 'assessment',
+  'school.fill': 'school',
 } as IconMapping;
 
 /**

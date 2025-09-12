@@ -361,6 +361,90 @@ export const getExamSchedule = async (rollNo?: string, password?: string) => {
   }
 };
 
+// Function to fetch internal marks
+export const getInternals = async (rollNo?: string, password?: string) => {
+  try {
+    // Use provided credentials or get from secure storage
+    let credentials: { rollNo: string; password: string } | null = null;
+
+    if (rollNo && password) {
+      // Validate and sanitize provided credentials
+      if (!securityUtils.validateRollNumber(rollNo)) {
+        throw new Error('Invalid roll number format');
+      }
+      credentials = {
+        rollNo: securityUtils.sanitizeInput(rollNo),
+        password: securityUtils.sanitizeInput(password)
+      };
+    } else {
+      // Get credentials from secure storage
+      credentials = await secureStorage.getCredentials();
+    }
+
+    if (!credentials) {
+      throw new Error('No credentials available. Please login first.');
+    }
+
+    const data = await apiPost('/internals', {
+      rollno: credentials.rollNo,
+      password: credentials.password
+    });
+
+    // Return the internals data as received from API
+    if (data && data.internals && Array.isArray(data.internals)) {
+      return data.internals;
+    }
+
+    // If no internals array, return empty array
+    return [];
+  } catch (error) {
+    console.error('Internals fetch error:', error);
+    throw error;
+  }
+};
+
+// Function to fetch CGPA data
+export const getCgpa = async (rollNo?: string, password?: string) => {
+  try {
+    // Use provided credentials or get from secure storage
+    let credentials: { rollNo: string; password: string } | null = null;
+
+    if (rollNo && password) {
+      // Validate and sanitize provided credentials
+      if (!securityUtils.validateRollNumber(rollNo)) {
+        throw new Error('Invalid roll number format');
+      }
+      credentials = {
+        rollNo: securityUtils.sanitizeInput(rollNo),
+        password: securityUtils.sanitizeInput(password)
+      };
+    } else {
+      // Get credentials from secure storage
+      credentials = await secureStorage.getCredentials();
+    }
+
+    if (!credentials) {
+      throw new Error('No credentials available. Please login first.');
+    }
+
+    const data = await apiPost('/cgpa', {
+      rollno: credentials.rollNo,
+      password: credentials.password
+    });
+
+    // Return the CGPA data as received from API
+    if (data && Array.isArray(data)) {
+      return data;
+    }
+
+    // If no CGPA array, return empty array
+    return [];
+  } catch (error) {
+    console.error('CGPA fetch error:', error);
+    throw error;
+  }
+};
+
 // Function to handle auto feedback
 export const autoFeedback = async (rollNo?: string, password?: string, feedbackIndex?: number) => {
   try {
@@ -407,6 +491,8 @@ export const dataCache = {
   // Cache keys
   ATTENDANCE_DATA: 'nimora_attendance_data',
   EXAM_SCHEDULE: 'nimora_exam_schedule',
+  INTERNALS_DATA: 'nimora_internals_data',
+  CGPA_DATA: 'nimora_cgpa_data',
   USER_GREETING: 'nimora_user_greeting',
   LAST_UPDATE: 'nimora_last_update',
 
@@ -469,6 +555,35 @@ export const dataCache = {
     }
   },
 
+  async setInternalsData(data: any[]): Promise<void> {
+    try {
+      const cacheData = {
+        data,
+        timestamp: Date.now(),
+        type: 'internals'
+      };
+      await AsyncStorage.setItem(this.INTERNALS_DATA, JSON.stringify(cacheData));
+      await AsyncStorage.setItem(this.LAST_UPDATE, Date.now().toString());
+    } catch (error) {
+      console.error('Error caching internals data:', error);
+    }
+  },
+
+  async getInternalsData(): Promise<any[] | null> {
+    try {
+      const cached = await AsyncStorage.getItem(this.INTERNALS_DATA);
+      if (!cached) return null;
+
+      const cacheData = JSON.parse(cached);
+      // Check if data is less than 24 hours old
+      const isValid = Date.now() - cacheData.timestamp < 24 * 60 * 60 * 1000;
+      return isValid ? cacheData.data : null;
+    } catch (error) {
+      console.error('Error retrieving cached internals data:', error);
+      return null;
+    }
+  },
+
   async setUserGreeting(data: string): Promise<void> {
     try {
       const cacheData = {
@@ -497,12 +612,43 @@ export const dataCache = {
     }
   },
 
+  async setCgpaData(data: any[]): Promise<void> {
+    try {
+      const cacheData = {
+        data,
+        timestamp: Date.now(),
+        type: 'cgpa'
+      };
+      await AsyncStorage.setItem(this.CGPA_DATA, JSON.stringify(cacheData));
+      await AsyncStorage.setItem(this.LAST_UPDATE, Date.now().toString());
+    } catch (error) {
+      console.error('Error caching CGPA data:', error);
+    }
+  },
+
+  async getCgpaData(): Promise<any[] | null> {
+    try {
+      const cached = await AsyncStorage.getItem(this.CGPA_DATA);
+      if (!cached) return null;
+
+      const cacheData = JSON.parse(cached);
+      // Check if data is less than 24 hours old
+      const isValid = Date.now() - cacheData.timestamp < 24 * 60 * 60 * 1000;
+      return isValid ? cacheData.data : null;
+    } catch (error) {
+      console.error('Error retrieving cached CGPA data:', error);
+      return null;
+    }
+  },
+
   // Clear all cached data
   async clearAllCache(): Promise<void> {
     try {
       await AsyncStorage.multiRemove([
         this.ATTENDANCE_DATA,
         this.EXAM_SCHEDULE,
+        this.INTERNALS_DATA,
+        this.CGPA_DATA,
         this.USER_GREETING,
         this.LAST_UPDATE
       ]);
@@ -570,7 +716,7 @@ export const fetchAndCacheAllData = async (rollNo?: string, password?: string): 
 };
 
 // Function to get cached data or fetch fresh data
-export const getCachedOrFreshData = async (dataType: 'attendance' | 'exam_schedule' | 'greeting', rollNo?: string, password?: string) => {
+export const getCachedOrFreshData = async (dataType: 'attendance' | 'exam_schedule' | 'internals' | 'cgpa' | 'greeting', rollNo?: string, password?: string) => {
   try {
     let cachedData = null;
 
@@ -587,6 +733,20 @@ export const getCachedOrFreshData = async (dataType: 'attendance' | 'exam_schedu
         if (!cachedData) {
           cachedData = await getExamSchedule(rollNo, password);
           await dataCache.setExamSchedule(cachedData);
+        }
+        break;
+      case 'internals':
+        cachedData = await dataCache.getInternalsData();
+        if (!cachedData) {
+          cachedData = await getInternals(rollNo, password);
+          await dataCache.setInternalsData(cachedData);
+        }
+        break;
+      case 'cgpa':
+        cachedData = await dataCache.getCgpaData();
+        if (!cachedData) {
+          cachedData = await getCgpa(rollNo, password);
+          await dataCache.setCgpaData(cachedData);
         }
         break;
       case 'greeting':
