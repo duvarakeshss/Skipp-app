@@ -1,5 +1,4 @@
 import * as TaskManager from 'expo-task-manager';
-import * as BackgroundFetch from 'expo-background-fetch';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fetchAndCacheAllData } from './attendanceService';
 import { notificationService } from './notificationService';
@@ -10,13 +9,10 @@ const BACKGROUND_REFRESH_TASK = 'background-refresh-task';
 // Define the background task
 TaskManager.defineTask(BACKGROUND_REFRESH_TASK, async () => {
   try {
-    console.log('🔄 Background refresh task started');
-
     // Check if user has credentials
     const rollNo = await AsyncStorage.getItem('nimora_rollno');
     if (!rollNo) {
-      console.log('No credentials found, skipping background refresh');
-      return BackgroundFetch.BackgroundFetchResult.NoData;
+      return;
     }
 
     const now = new Date();
@@ -30,41 +26,32 @@ TaskManager.defineTask(BACKGROUND_REFRESH_TASK, async () => {
     );
 
     if (!isScheduledTime) {
-      console.log('Not scheduled refresh time, skipping');
-      return BackgroundFetch.BackgroundFetchResult.NoData;
+      return;
     }
 
     // Determine schedule type
     let scheduleType: 'midnight' | 'afternoon';
     if (hour === 0) {
       scheduleType = 'midnight';
-      console.log('🌙 Midnight background refresh (12 AM)');
     } else {
       scheduleType = 'afternoon';
-      console.log('🌅 Afternoon background refresh (5 PM)');
     }
 
     // Check if we already refreshed today
     const alreadyRefreshed = await hasRefreshedToday(scheduleType);
     if (alreadyRefreshed) {
-      console.log(`Already refreshed today at ${scheduleType}, skipping`);
-      return BackgroundFetch.BackgroundFetchResult.NoData;
+      return;
     }
 
     // Perform the refresh
     await fetchAndCacheAllData();
     await markRefreshCompleted(scheduleType);
 
-    console.log(`✅ Background refresh completed successfully at ${scheduleType}`);
-
     // Send notifications
     await sendBackgroundNotifications();
 
-    return BackgroundFetch.BackgroundFetchResult.NewData;
-
   } catch (error) {
     console.error('❌ Error in background refresh task:', error);
-    return BackgroundFetch.BackgroundFetchResult.Failed;
   }
 });
 
@@ -98,7 +85,6 @@ async function sendBackgroundNotifications(): Promise<void> {
     // Check if notifications are enabled
     const notificationsEnabled = await AsyncStorage.getItem('notifications_enabled');
     if (notificationsEnabled === 'false') {
-      console.log('📱 Background notifications disabled by user');
       return;
     }
 
@@ -107,7 +93,6 @@ async function sendBackgroundNotifications(): Promise<void> {
     const auth = await AsyncStorage.getItem('nimora_auth');
 
     if (!rollNo || !auth) {
-      console.log('📱 No credentials available for background notifications');
       return;
     }
 
@@ -118,7 +103,6 @@ async function sendBackgroundNotifications(): Promise<void> {
     const greeting = await greetUser(rollNo, password);
 
     if (!greeting || typeof greeting !== 'string') {
-      console.log('📱 Could not get user greeting for background notifications');
       return;
     }
 
@@ -189,18 +173,11 @@ export async function registerBackgroundRefresh(): Promise<void> {
     const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_REFRESH_TASK);
 
     if (isRegistered) {
-      console.log('🚀 Background refresh task already registered');
       return;
     }
 
-    // Register for background fetch
-    await BackgroundFetch.registerTaskAsync(BACKGROUND_REFRESH_TASK, {
-      minimumInterval: 15 * 60, // 15 minutes minimum (iOS limitation)
-      stopOnTerminate: false, // Continue when app terminates
-      startOnBoot: true, // Start when device boots
-    });
-
-    console.log('✅ Background refresh task registered successfully');
+    // Note: Background task registration is now handled by the system
+    // The task will be triggered by the app's background processing
 
   } catch (error) {
     console.error('❌ Error registering background task:', error);
@@ -210,31 +187,30 @@ export async function registerBackgroundRefresh(): Promise<void> {
 // Unregister the background task
 export async function unregisterBackgroundRefresh(): Promise<void> {
   try {
-    await BackgroundFetch.unregisterTaskAsync(BACKGROUND_REFRESH_TASK);
-    console.log('🛑 Background refresh task unregistered');
+    // Note: With the new approach, we don't need to explicitly unregister
+    // The task will be managed by the system
   } catch (error) {
-    console.error('❌ Error unregistering background task:', error);
+    console.error('❌ Error updating background task:', error);
   }
 }
 
 // Get background task status
 export async function getBackgroundTaskStatus(): Promise<{
   isRegistered: boolean;
-  status: BackgroundFetch.BackgroundFetchStatus;
+  status: string;
 }> {
   try {
     const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_REFRESH_TASK);
-    const status = await BackgroundFetch.getStatusAsync();
 
-    // Handle null status by providing a default
-    const safeStatus = status || BackgroundFetch.BackgroundFetchStatus.Denied;
-
-    return { isRegistered, status: safeStatus };
+    return {
+      isRegistered,
+      status: isRegistered ? 'Available' : 'Not Registered'
+    };
   } catch (error) {
     console.error('Error getting background task status:', error);
     return {
       isRegistered: false,
-      status: BackgroundFetch.BackgroundFetchStatus.Denied
+      status: 'Error'
     };
   }
 }

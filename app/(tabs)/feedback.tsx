@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'expo-router'
-import { getStoredCredentials, clearCredentials, autoFeedback, greetUser, getCachedOrFreshData } from '../../utils/attendanceService'
+import { getStoredCredentials, autoFeedback, getCachedOrFreshData } from '../../utils/attendanceService'
 import {
   View,
   Text,
@@ -8,20 +8,16 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
-  StyleSheet,
-  Dimensions,
-  Platform
+  StyleSheet
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import { LinearGradient } from 'expo-linear-gradient'
 import LogoutModal from '../../components/LogoutModal'
 import { sessionManager } from '../../utils/sessionManager'
 import SettingsModal from '../../components/SettingsModal'
 import ProfileMenu from '../../components/ProfileMenu'
 import { notificationService } from '../../utils/notificationService'
-
-const { width } = Dimensions.get('window')
+import { StatusBar } from 'expo-status-bar'
 
 export default function Feedback() {
   const router = useRouter()
@@ -35,6 +31,7 @@ export default function Feedback() {
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
   const [examNotificationsEnabled, setExamNotificationsEnabled] = useState(true)
+  const [refreshLoading, setRefreshLoading] = useState(false)
 
   useEffect(() => {
     const checkCredentials = async () => {
@@ -75,7 +72,7 @@ export default function Feedback() {
     }
 
     checkCredentials()
-  }, [])
+  }, [router])
 
   const handleLogout = () => {
     setShowLogoutModal(true)
@@ -125,6 +122,44 @@ export default function Feedback() {
     await notificationService.setExamNotificationsEnabled(newState)
   }
 
+  const handleRefresh = async () => {
+    try {
+      setRefreshLoading(true)
+
+      // Get credentials from storage
+      const credentials = await getStoredCredentials()
+      if (!credentials) {
+        Alert.alert('Error', 'No credentials found. Please log in again.')
+        return
+      }
+
+      // Clear cache for greeting data to force fresh data
+      setLoading(true)
+      setError('')
+
+      // Get fresh greeting data for user name
+      try {
+        const greeting = await getCachedOrFreshData('greeting', credentials.rollNo, credentials.password);
+        const name = (greeting.split(',')[1]?.trim() || greeting.split(' ')[1] || 'User').replace('!', '');
+        setUserName(name);
+      } catch (nameError) {
+        console.error('Error fetching user name:', nameError);
+        setUserName('User');
+      }
+
+      // Since feedback.tsx mainly deals with feedback automation and doesn't load much cached data,
+      // we'll just refresh the greeting/user info
+      Alert.alert('Success', 'User information refreshed successfully')
+    } catch (err: any) {
+      console.error('Error refreshing data:', err)
+      setError(err.message || 'Failed to refresh data')
+      Alert.alert('Error', err.message || 'Failed to refresh data')
+    } finally {
+      setRefreshLoading(false)
+      setLoading(false)
+    }
+  }
+
   const handleAutoFeedback = async (feedbackIndex: number) => {
     const credentials = await getStoredCredentials()
     if (!credentials) {
@@ -151,6 +186,7 @@ export default function Feedback() {
 
   return (
     <View style={styles.container}>
+      <StatusBar style="light" hidden={true} />
       {/* Top Bar */}
       <View style={styles.topBar}>
         <View style={styles.topBarContent}>
@@ -443,6 +479,8 @@ export default function Feedback() {
         examNotificationsEnabled={examNotificationsEnabled}
         onToggleNotifications={toggleNotifications}
         onToggleExamNotifications={toggleExamNotifications}
+        onRefreshData={handleRefresh}
+        isRefreshingData={refreshLoading}
       />
     </View>
   )
@@ -455,7 +493,7 @@ const styles = StyleSheet.create({
   },
   topBar: {
     backgroundColor: '#0f172a',
-    paddingTop: Platform.OS === 'ios' ? 20 : 16,
+    paddingTop: 16,
     paddingBottom: 16,
     paddingHorizontal: 20,
     shadowColor: '#000',

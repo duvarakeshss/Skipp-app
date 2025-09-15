@@ -1,14 +1,14 @@
-﻿import React, { useState, useEffect } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, Keyboard, View, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { KeyboardAvoidingView, Platform, ScrollView, Keyboard, View, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import styled from 'styled-components/native';
 import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, LinearGradient, Stop, Circle, Path } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
+import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { loginUser } from '../utils/attendanceService';
+import { loginUser , fetchAndCacheAllData } from '../utils/attendanceService';
 import { sessionManager } from '../utils/sessionManager';
-import { fetchAndCacheAllData } from '../utils/attendanceService';
 import { initializeBackgroundRefresh } from '../utils/backgroundRefresh';
 
 // Logo Component
@@ -306,7 +306,7 @@ export default function LoginScreen() {
     };
 
     checkExistingSession();
-  }, []);
+  }, [router]);
 
   const handleLogin = async () => {
     setError('');
@@ -325,9 +325,7 @@ export default function LoginScreen() {
 
       // Fetch and cache all data for offline use
       try {
-        console.log('Fetching initial data...');
         await fetchAndCacheAllData(rollNo.trim(), password);
-        console.log('Initial data fetch completed');
       } catch (dataError) {
         console.warn('Failed to fetch initial data, but login successful:', dataError);
         // Don't block login if data fetch fails
@@ -336,7 +334,6 @@ export default function LoginScreen() {
       // Initialize background refresh system
       try {
         await initializeBackgroundRefresh();
-        console.log('Background refresh system initialized');
       } catch (refreshError) {
         console.warn('Failed to initialize background refresh:', refreshError);
         // Don't block login if background refresh fails
@@ -387,6 +384,12 @@ export default function LoginScreen() {
     <Container
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      <StatusBar
+        style="light"
+        backgroundColor="#0f172a"
+        translucent={true}
+        hidden={true}
+      />
       <Background
         contentContainerStyle={{ flexGrow: 1 }}
         keyboardShouldPersistTaps="handled"

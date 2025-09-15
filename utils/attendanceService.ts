@@ -661,8 +661,6 @@ export const dataCache = {
 // Function to fetch and cache all data at once
 export const fetchAndCacheAllData = async (rollNo?: string, password?: string): Promise<void> => {
   try {
-    console.log('Fetching and caching all data...');
-
     // Get credentials
     let credentials: { rollNo: string; password: string } | null = null;
 
@@ -680,35 +678,45 @@ export const fetchAndCacheAllData = async (rollNo?: string, password?: string): 
     }
 
     // Fetch all data in parallel
-    const [attendanceData, examSchedule, userGreeting] = await Promise.allSettled([
+    const [attendanceData, examSchedule, userGreeting, internalsData, cgpaData] = await Promise.allSettled([
       getStudentAttendance(credentials.rollNo, credentials.password),
       getExamSchedule(credentials.rollNo, credentials.password),
-      greetUser(credentials.rollNo, credentials.password)
+      greetUser(credentials.rollNo, credentials.password),
+      getInternals(credentials.rollNo, credentials.password),
+      getCgpa(credentials.rollNo, credentials.password)
     ]);
 
     // Cache successful results
     if (attendanceData.status === 'fulfilled') {
       await dataCache.setAttendanceData(attendanceData.value);
-      console.log('Attendance data cached successfully');
     } else {
       console.error('Failed to fetch attendance data:', attendanceData.reason);
     }
 
     if (examSchedule.status === 'fulfilled') {
       await dataCache.setExamSchedule(examSchedule.value);
-      console.log('Exam schedule cached successfully');
     } else {
       console.error('Failed to fetch exam schedule:', examSchedule.reason);
     }
 
     if (userGreeting.status === 'fulfilled') {
       await dataCache.setUserGreeting(userGreeting.value);
-      console.log('User greeting cached successfully');
     } else {
       console.error('Failed to fetch user greeting:', userGreeting.reason);
     }
 
-    console.log('Data fetching and caching completed');
+    if (internalsData.status === 'fulfilled') {
+      await dataCache.setInternalsData(internalsData.value);
+    } else {
+      console.error('Failed to fetch internals data:', internalsData.reason);
+    }
+
+    if (cgpaData.status === 'fulfilled') {
+      await dataCache.setCgpaData(cgpaData.value);
+    } else {
+      console.error('Failed to fetch CGPA data:', cgpaData.reason);
+    }
+
   } catch (error) {
     console.error('Error in fetchAndCacheAllData:', error);
     throw error;
@@ -812,14 +820,131 @@ export const getStoredCredentials = async (): Promise<{ rollNo: string; password
   }
 };
 
-// Function to check if user is logged in (has stored credentials)
-export const isLoggedIn = async (): Promise<boolean> => {
+// Function to get cache status information
+export const getCacheStatus = async (): Promise<{
+  attendance: boolean;
+  exam_schedule: boolean;
+  internals: boolean;
+  cgpa: boolean;
+  greeting: boolean;
+  lastUpdate: number | null;
+}> => {
   try {
-    const credentials = await getStoredCredentials();
-    return credentials !== null;
+    const [
+      attendanceData,
+      examSchedule,
+      internalsData,
+      cgpaData,
+      userGreeting,
+      lastUpdate
+    ] = await AsyncStorage.multiGet([
+      dataCache.ATTENDANCE_DATA,
+      dataCache.EXAM_SCHEDULE,
+      dataCache.INTERNALS_DATA,
+      dataCache.CGPA_DATA,
+      dataCache.USER_GREETING,
+      dataCache.LAST_UPDATE
+    ]);
+
+    return {
+      attendance: !!attendanceData[1],
+      exam_schedule: !!examSchedule[1],
+      internals: !!internalsData[1],
+      cgpa: !!cgpaData[1],
+      greeting: !!userGreeting[1],
+      lastUpdate: lastUpdate[1] ? parseInt(lastUpdate[1]) : null
+    };
   } catch (error) {
-    console.warn('Error checking login status:', error);
-    return false;
+    console.error('Error getting cache status:', error);
+    return {
+      attendance: false,
+      exam_schedule: false,
+      internals: false,
+      cgpa: false,
+      greeting: false,
+      lastUpdate: null
+    };
+  }
+};
+
+// Function to force refresh all cached data
+export const forceRefreshCache = async (rollNo?: string, password?: string): Promise<void> => {
+  try {
+    // Clear existing cache
+    await dataCache.clearAllCache();
+
+    // Fetch fresh data
+    await fetchAndCacheAllData(rollNo, password);
+
+  } catch (error) {
+    console.error('Error force refreshing cache:', error);
+    throw error;
+  }
+};
+
+// Function to check if cache is stale (older than specified hours)
+export const isCacheStale = async (maxAgeHours: number = 24): Promise<boolean> => {
+  try {
+    const lastUpdate = await AsyncStorage.getItem(dataCache.LAST_UPDATE);
+    if (!lastUpdate) return true;
+
+    const lastUpdateTime = parseInt(lastUpdate);
+    const maxAge = maxAgeHours * 60 * 60 * 1000; // Convert hours to milliseconds
+    const now = Date.now();
+
+    return (now - lastUpdateTime) > maxAge;
+  } catch (error) {
+    console.error('Error checking cache staleness:', error);
+    return true; // Assume stale if error
+  }
+};
+
+// Function to get cache size information
+export const getCacheSize = async (): Promise<{
+  totalItems: number;
+  estimatedSize: string;
+  items: { [key: string]: boolean };
+}> => {
+  try {
+    const keys = [
+      dataCache.ATTENDANCE_DATA,
+      dataCache.EXAM_SCHEDULE,
+      dataCache.INTERNALS_DATA,
+      dataCache.CGPA_DATA,
+      dataCache.USER_GREETING,
+      dataCache.LAST_UPDATE
+    ];
+
+    const results = await AsyncStorage.multiGet(keys);
+    const items: { [key: string]: boolean } = {};
+    let totalItems = 0;
+    let estimatedSize = 0;
+
+    results.forEach(([key, value]) => {
+      const hasData = !!value;
+      items[key] = hasData;
+      if (hasData) {
+        totalItems++;
+        estimatedSize += value.length;
+      }
+    });
+
+    // Convert bytes to human readable format
+    const sizeInKB = (estimatedSize / 1024).toFixed(2);
+    const sizeDisplay = estimatedSize > 1024 ? `${sizeInKB} KB` : `${estimatedSize} bytes`;
+
+    return {
+      totalItems,
+      estimatedSize: sizeDisplay,
+      items
+    };
+  } catch (error) {
+    console.error('Error getting cache size:', error);
+    return {
+      totalItems: 0,
+      estimatedSize: '0 bytes',
+      items: {}
+    };
   }
 };
 

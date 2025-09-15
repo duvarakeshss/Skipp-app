@@ -1,30 +1,26 @@
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter, useLocalSearchParams } from 'expo-router'
-import { getStudentAttendance, greetUser, getStoredCredentials, clearCredentials, getCachedOrFreshData } from '../../utils/attendanceService'
+import { getStoredCredentials, getCachedOrFreshData, dataCache } from '../../utils/attendanceService'
 import { notificationService } from '../../utils/notificationService'
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   Alert,
   ActivityIndicator,
   StyleSheet,
-  Dimensions,
-  Platform,
   PanResponder,
   PanResponderInstance
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import { LinearGradient } from 'expo-linear-gradient'
 import LogoutModal from '../../components/LogoutModal'
 import { sessionManager } from '../../utils/sessionManager'
 import SettingsModal from '../../components/SettingsModal'
 import ProfileMenu from '../../components/ProfileMenu'
-
-const { width } = Dimensions.get('window')
+import { StatusBar } from 'expo-status-bar'
+import * as Haptics from 'expo-haptics'
 
 export default function Home() {
   const router = useRouter()
@@ -32,7 +28,6 @@ export default function Home() {
   const { rollNo, password } = params as { rollNo?: string; password?: string }
   const [loading, setLoading] = useState(true)
   const [greeting, setGreeting] = useState('')
-  const [attendanceData, setAttendanceData] = useState<any[]>([])
   const [customPercentage, setCustomPercentage] = useState(80)
   const [combinedData, setCombinedData] = useState<any[]>([])
   const [showLogoutModal, setShowLogoutModal] = useState(false)
@@ -41,7 +36,77 @@ export default function Home() {
   const [examNotificationsEnabled, setExamNotificationsEnabled] = useState(true)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
   const [showSettingsModal, setShowSettingsModal] = useState(false)
-  const toastShownRef = useRef(false)
+  const [refreshLoading, setRefreshLoading] = useState(false)
+  const attendanceDataRef = useRef<any[]>([])
+  const [updateCounter, setUpdateCounter] = useState(0)
+
+  const calculateIndividualLeaves = useCallback((classesPresent: number, classesTotal: number, maintenancePercentage: number) => {
+    if (classesTotal === 0) return 0
+
+    let affordableLeaves = 0
+    let i = 1
+    const MAX_ITERATIONS = 1000
+
+    // Special case for 100% attendance target
+    if (maintenancePercentage === 100) {
+      return (classesPresent / classesTotal) * 100 === 100 ? 0 : -(classesTotal - classesPresent)
+    }
+
+    const currentPercentage = (classesPresent / classesTotal) * 100
+
+    if (currentPercentage < maintenancePercentage) {
+      // Need to attend more classes
+      let iterations = 0
+      while (((classesPresent + i) / (classesTotal + i)) * 100 <= maintenancePercentage && iterations < MAX_ITERATIONS) {
+        affordableLeaves -= 1
+        i += 1
+        iterations += 1
+      }
+      return iterations >= MAX_ITERATIONS ? Math.floor(-MAX_ITERATIONS / 10) : affordableLeaves
+    } else {
+      // Can afford some leaves
+      let iterations = 0
+      while ((classesPresent / (classesTotal + i)) * 100 >= maintenancePercentage && iterations < MAX_ITERATIONS) {
+        affordableLeaves += 1
+        i += 1
+        iterations += 1
+      }
+      return iterations >= MAX_ITERATIONS ? Math.floor(MAX_ITERATIONS / 10) : affordableLeaves
+    }
+  }, [])
+
+  const calculateCombinedData = useCallback((data: any[], percentage: number) => {
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      return
+    }
+
+    try {
+      const result = data.map((course, index) => {
+        if (!Array.isArray(course) || course.length < 6) {
+          return null
+        }
+
+        const classesTotal = parseInt(course[1]) || 0
+        const classesPresent = parseInt(course[4]) || 0
+        const leaves = calculateIndividualLeaves(classesPresent, classesTotal, percentage)
+
+        return {
+          courseCode: course[0] || 'Unknown',
+          totalClasses: course[1] || '0',
+          present: course[4] || '0',
+          absent: course[2] || '0',
+          percentage: course[5] || '0',
+          affordableLeaves: leaves
+        }
+      }).filter(course => course !== null)
+
+      setCombinedData(result)
+      setUpdateCounter(prev => prev + 1)
+    } catch (error) {
+      console.error('💥 Error in calculateCombinedData:', error)
+      setCombinedData([])
+    }
+  }, [calculateIndividualLeaves])
 
   useEffect(() => {
     const fetchData = async () => {
@@ -88,7 +153,7 @@ export default function Home() {
         // Only fetch attendance data if greeting was successful
         if (userGreeting) {
           const data = await getCachedOrFreshData('attendance', credentials.rollNo, credentials.password);
-          setAttendanceData(data);
+          attendanceDataRef.current = data;
 
           // Calculate affordable leaves with default percentage
           calculateCombinedData(data, customPercentage);
@@ -143,79 +208,20 @@ export default function Home() {
     }
 
     fetchData()
-  }, [rollNo, password])
+  }, [rollNo, password, calculateCombinedData, customPercentage, router])
 
-  const calculateCombinedData = (data: any[], percentage: number) => {
-    if (!data || data.length === 0) return
-
-    const result = data.map(course => {
-      const classesTotal = parseInt(course[1])
-      const classesPresent = parseInt(course[4])
-      const leaves = calculateIndividualLeaves(classesPresent, classesTotal, percentage)
-
-      return {
-        courseCode: course[0],
-        totalClasses: course[1],
-        present: course[4],
-        absent: course[2],
-        percentage: course[5],
-        affordableLeaves: leaves
-      }
-    })
-
-    setCombinedData(result)
-  }
-
-  const calculateIndividualLeaves = (classesPresent: number, classesTotal: number, maintenancePercentage: number) => {
-    let affordableLeaves = 0
-    let i = 1
-    const MAX_ITERATIONS = 1000 // Safety limit to prevent infinite loops
-
-    // Special case for 100% attendance target
-    if (maintenancePercentage === 100) {
-      if ((classesPresent / classesTotal) * 100 === 100) {
-        return classesPresent === classesTotal ? 0 : 0
-      } else {
-        return -(classesTotal - classesPresent)
-      }
-    }
-
-    if ((classesPresent / classesTotal) * 100 < maintenancePercentage) {
-      let iterations = 0
-      while (((classesPresent + i) / (classesTotal + i)) * 100 <= maintenancePercentage && iterations < MAX_ITERATIONS) {
-        affordableLeaves -= 1
-        i += 1
-        iterations += 1
-      }
-
-      if (iterations >= MAX_ITERATIONS) {
-        return Math.floor(-MAX_ITERATIONS / 10)
-      }
-    } else {
-      let iterations = 0
-      while ((classesPresent / (classesTotal + i)) * 100 >= maintenancePercentage && iterations < MAX_ITERATIONS) {
-        affordableLeaves += 1
-        i += 1
-        iterations += 1
-      }
-
-      if (iterations >= MAX_ITERATIONS) {
-        return Math.floor(MAX_ITERATIONS / 10)
-      }
-    }
-
-    return affordableLeaves
-  }
-
-  const handlePercentageChange = (newPercentage: number) => {
-    setCustomPercentage(newPercentage)
-    calculateCombinedData(attendanceData, newPercentage)
+  const getMaintenanceColor = (percentage: number): [string, string] => {
+    if (percentage >= 90) return ['#10b981', '#059669'] // Green for high maintenance
+    if (percentage >= 80) return ['#3b82f6', '#2563eb'] // Blue for good maintenance
+    if (percentage >= 70) return ['#f59e0b', '#d97706'] // Orange for moderate
+    return ['#ef4444', '#dc2626'] // Red for low maintenance
   }
 
   const [isDragging, setIsDragging] = useState(false)
   const sliderRef = useRef<View>(null)
   const sliderWidth = useRef(0)
   const sliderX = useRef(0)
+  const lastCalculatedPercentage = useRef(80) // Store the last valid percentage
 
   // Create PanResponder for better touch handling
   const panResponder = useRef<PanResponderInstance>(
@@ -224,6 +230,7 @@ export default function Home() {
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: (evt) => {
         setIsDragging(true)
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
         // Measure slider position and dimensions
         if (sliderRef.current) {
           sliderRef.current.measure((x, y, width, height, pageX, pageY) => {
@@ -239,32 +246,36 @@ export default function Home() {
           const percentage = Math.max(0, Math.min(1, relativeX / sliderWidth.current))
           const newValue = Math.round(50 + (percentage * 50))
           const finalValue = Math.max(50, Math.min(100, newValue))
-          setCustomPercentage(finalValue)
+
+          // Store the last calculated value
+          lastCalculatedPercentage.current = finalValue
+
+          // Only update if the value has actually changed
+          if (finalValue !== customPercentage) {
+            setCustomPercentage(finalValue)
+
+            // Simple immediate calculation
+            if (attendanceDataRef.current && attendanceDataRef.current.length > 0) {
+              calculateCombinedData(attendanceDataRef.current, finalValue)
+            }
+          }
         }
       },
       onPanResponderRelease: () => {
         setIsDragging(false)
-        calculateCombinedData(attendanceData, customPercentage)
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+        // Use the last calculated percentage to ensure accuracy
+        setCustomPercentage(lastCalculatedPercentage.current)
+        calculateCombinedData(attendanceDataRef.current, lastCalculatedPercentage.current)
       },
       onPanResponderTerminate: () => {
         setIsDragging(false)
+        // Use the last calculated percentage to ensure accuracy
+        setCustomPercentage(lastCalculatedPercentage.current)
+        calculateCombinedData(attendanceDataRef.current, lastCalculatedPercentage.current)
       }
     })
   )
-
-  const handleSliderTouch = (event: any) => {
-    if (sliderRef.current) {
-      sliderRef.current.measure((x: number, y: number, width: number, height: number, pageX: number, pageY: number) => {
-        const touchX = event.nativeEvent.pageX
-        const relativeX = touchX - pageX
-        const percentage = Math.max(0, Math.min(1, relativeX / width))
-        const newValue = Math.round(50 + (percentage * 50))
-        const finalValue = Math.max(50, Math.min(100, newValue))
-        setCustomPercentage(finalValue)
-        calculateCombinedData(attendanceData, finalValue)
-      })
-    }
-  }
 
   const handleLogout = () => {
     setShowLogoutModal(true)
@@ -296,6 +307,45 @@ export default function Home() {
     const newState = !examNotificationsEnabled
     setExamNotificationsEnabled(newState)
     await notificationService.setExamNotificationsEnabled(newState)
+  }
+
+  const handleRefresh = async () => {
+    let credentials = { rollNo: rollNo || '', password: password || '' }
+
+    // If no credentials from params, try to get from storage
+    if (!credentials.rollNo || !credentials.password) {
+      const stored = await getStoredCredentials()
+      if (stored) {
+        credentials = stored
+      }
+    }
+
+    if (!credentials.rollNo || !credentials.password) {
+      Alert.alert('Error', 'No credentials found. Please log in again.')
+      return
+    }
+
+    try {
+      setRefreshLoading(true)
+
+      // Clear cache first to force fresh data
+      await dataCache.clearAllCache()
+
+      // Fetch fresh data
+      const userGreeting = await getCachedOrFreshData('greeting', credentials.rollNo, credentials.password);
+      setGreeting(userGreeting);
+
+      if (userGreeting) {
+        const data = await getCachedOrFreshData('attendance', credentials.rollNo, credentials.password);
+        attendanceDataRef.current = data;
+        calculateCombinedData(data, customPercentage);
+      }
+    } catch (err: any) {
+      console.error('Error refreshing data:', err)
+      Alert.alert('Error', err.message || 'Failed to refresh data')
+    } finally {
+      setRefreshLoading(false)
+    }
   }
 
   const handleProfileMenuClose = () => {
@@ -390,6 +440,7 @@ export default function Home() {
 
   return (
     <View style={styles.fullScreenContainer}>
+      <StatusBar style="light" hidden={true} />
       {/* Top Bar */}
       <View style={styles.topBar}>
         <View style={styles.topBarContent}>
@@ -433,7 +484,17 @@ export default function Home() {
           
                 </View>
                 <View style={styles.greetingDecoration}>
-                  <Ionicons name="sparkles" size={16} color="#ffffff" />
+                  <TouchableOpacity
+                    onPress={handleRefresh}
+                    disabled={refreshLoading}
+                    style={styles.refreshButton}
+                  >
+                    {refreshLoading ? (
+                      <ActivityIndicator size="small" color="#ffffff" />
+                    ) : (
+                      <Ionicons name="refresh" size={16} color="#ffffff" />
+                    )}
+                  </TouchableOpacity>
                 </View>
               </View>
             </LinearGradient>
@@ -461,15 +522,30 @@ export default function Home() {
 
           {/* Maintenance Target */}
           {combinedData.length > 0 && (
-            <View style={styles.overviewCard}>
+            <LinearGradient
+              colors={['#f8fafc', '#f1f5f9', '#e2e8f0']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0, y: 1 }}
+              style={styles.overviewCard}
+            >
               <View style={styles.percentageContainer}>
                 <View style={styles.percentageHeader}>
                   <View style={styles.percentageIconContainer}>
-                    <Text style={styles.percentageIcon}>%</Text>
+                    <Ionicons name="shield-checkmark" size={24} color="#10b981" />
                   </View>
-                  <Text style={styles.percentageLabel}>Maintenance Target:</Text>
+                  <View style={styles.percentageTextContainer}>
+                    <Text style={styles.percentageLabel}>Maintenance Target</Text>
+                    <Text style={styles.percentageSubLabel}>Set your desired attendance percentage</Text>
+                  </View>
                   <View style={styles.percentageValueContainer}>
-                    <Text style={styles.percentageValue}>{customPercentage}%</Text>
+                    <LinearGradient
+                      colors={getMaintenanceColor(customPercentage)}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.percentageValueBadge}
+                    >
+                      <Text style={styles.percentageValue}>{customPercentage}%</Text>
+                    </LinearGradient>
                   </View>
                 </View>
 
@@ -481,7 +557,10 @@ export default function Home() {
                     {...panResponder.current.panHandlers}
                   >
                     <View style={styles.draggerRail} />
-                    <View
+                    <LinearGradient
+                      colors={['#3b82f6', '#1d4ed8', '#1e40af']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
                       style={[
                         styles.draggerProgress,
                         { width: `${((customPercentage - 50) / 50) * 100}%` }
@@ -492,13 +571,18 @@ export default function Home() {
                         styles.draggerThumb,
                         {
                           left: `${((customPercentage - 50) / 50) * 100}%`,
-                          marginLeft: -30, // Half of thumb width for center alignment
+                          marginLeft: -35, // Half of thumb width for center alignment
                         }
                       ]}
                     >
-                      <View style={[styles.draggerThumbInner, isDragging && styles.draggerThumbDragging]}>
+                      <LinearGradient
+                        colors={['#10b981', '#059669', '#047857']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 0, y: 1 }}
+                        style={[styles.draggerThumbInner, isDragging && styles.draggerThumbDragging]}
+                      >
                         <Text style={styles.draggerThumbText}>{customPercentage}%</Text>
-                      </View>
+                      </LinearGradient>
                     </View>
                   </View>
                   <View style={styles.draggerLabels}>
@@ -511,15 +595,15 @@ export default function Home() {
                   </View>
                 </View>
                 <Text style={styles.sliderHint}>
-                  Drag the slider to adjust your attendance maintenance target.
+                  🎯 Drag to set your target attendance percentage. This helps calculate how many classes you can safely miss.
                 </Text>
               </View>
-            </View>
+            </LinearGradient>
           )}
 
           {/* Attendance Data */}
           {combinedData.length > 0 && (
-            <View style={styles.dataCard}>
+            <View key={`attendance-data-${updateCounter}`} style={styles.dataCard}>
               <View style={styles.dataCardContent}>
                 {/* Sort courses by attendance percentage (low to high) to highlight courses needing attention */}
                 {combinedData
@@ -533,7 +617,7 @@ export default function Home() {
                 const canAffordLeaves = course.affordableLeaves >= 0
 
                 return (
-                  <View key={index} style={styles.courseCard}>
+                  <View key={`${course.courseCode}-${index}-${course.affordableLeaves}`} style={styles.courseCard}>
                     <LinearGradient
                       colors={['#1e3a8a', '#3b82f6', '#60a5fa']}
                       start={{ x: 0, y: 0 }}
@@ -668,6 +752,8 @@ export default function Home() {
       examNotificationsEnabled={examNotificationsEnabled}
       onToggleNotifications={toggleNotifications}
       onToggleExamNotifications={toggleExamNotifications}
+      onRefreshData={handleRefresh}
+      isRefreshingData={refreshLoading}
     />
     </View>
   )
@@ -681,7 +767,7 @@ const styles = StyleSheet.create({
   },
   topBar: {
     backgroundColor: '#0f172a',
-    paddingTop: Platform.OS === 'ios' ? 20 : 16,
+    paddingTop: 16,
     paddingBottom: 16,
     paddingHorizontal: 20,
     shadowColor: '#000',
@@ -1137,86 +1223,101 @@ const styles = StyleSheet.create({
     color: '#6b7280',
   },
   sliderHint: {
-    fontSize: 12,
-    color: '#6b7280',
+    fontSize: 13,
+    color: '#64748b',
     textAlign: 'center',
+    fontWeight: '500',
+    lineHeight: 18,
+    marginTop: 8,
+    paddingHorizontal: 16,
   },
   draggerTrack: {
     position: 'relative',
-    height: 40,
-    marginBottom: 16,
+    height: 50,
+    marginBottom: 20,
     justifyContent: 'center',
-    marginHorizontal: 30,
+    marginHorizontal: 20,
+    paddingVertical: 10,
   },
   draggerRail: {
-    height: 6,
-    backgroundColor: '#e2e8f0',
-    borderRadius: 3,
+    height: 8,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 4,
     position: 'absolute',
     left: 0,
     right: 0,
     top: '50%',
-    marginTop: -3,
+    marginTop: -4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   draggerProgress: {
-    height: 6,
-    backgroundColor: '#3b82f6',
-    borderRadius: 3,
+    height: 8,
+    borderRadius: 4,
     position: 'absolute',
     left: 0,
     top: '50%',
-    marginTop: -3,
+    marginTop: -4,
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   draggerThumb: {
     position: 'absolute',
-    width: 64,
-    height: 36,
+    width: 70,
+    height: 40,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
     top: '50%',
-    marginTop: -18,
+    marginTop: -20,
   },
   draggerThumbInner: {
-    width: 54,
-    height: 32,
-    backgroundColor: '#10b981',
-    borderRadius: 16,
+    width: 60,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 6,
-    borderWidth: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    borderWidth: 3,
     borderColor: '#ffffff',
   },
   draggerThumbDragging: {
-    backgroundColor: '#059669',
-    transform: [{ scale: 1.15 }],
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 8,
+    transform: [{ scale: 1.2 }],
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 12,
     borderColor: '#f0fdf4',
   },
   draggerThumbText: {
     color: '#ffffff',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: 'bold',
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    textShadowRadius: 3,
   },
   draggerLabels: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 30, // Account for margins
+    paddingHorizontal: 20, // Account for margins
+    marginTop: 8,
   },
   draggerLabel: {
-    fontSize: 12,
-    color: '#6b7280',
-    fontWeight: '500',
+    fontSize: 13,
+    color: '#64748b',
+    fontWeight: '600',
+    textAlign: 'center',
+    minWidth: 40,
   },
   dataCardContent: {
     padding: 16,
@@ -1267,9 +1368,9 @@ const styles = StyleSheet.create({
     borderColor: '#065f46',
   },
   statusWarning: {
-    backgroundColor: '#fee2e2',
+    backgroundColor: '#dc2626',
     borderWidth: 1,
-    borderColor: '#fca5a5',
+    borderColor: '#b91c1c',
   },
   statusText: {
     fontSize: 12,
@@ -1558,5 +1659,33 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#075985',
     lineHeight: 22,
+  },
+  percentageTextContainer: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  percentageSubLabel: {
+    fontSize: 12,
+    color: '#64748b',
+    fontWeight: '400',
+    marginTop: 2,
+  },
+  percentageValueBadge: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 60,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  refreshButton: {
+    padding: 4,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
 })

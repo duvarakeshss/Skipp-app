@@ -15,15 +15,22 @@
       "**/*"
     ],
     "scheme": "nimora",
-    "ios": {
-      "supportsTablet": true
-    },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.app.nimora"
+      "package": "com.app.nimora",
+      "statusBar": {
+        "hidden": true,
+        "translucent": true
+      }
+    },
+    "ios": {
+      "supportsTablet": true,
+      "statusBar": {
+        "hidden": true
+      }
     },
     "web": {
       "favicon": "./assets/images/favicon.png"

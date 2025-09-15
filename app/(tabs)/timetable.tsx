@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { useRouter, useLocalSearchParams } from 'expo-router'
-import { getStoredCredentials, clearCredentials, getExamSchedule, greetUser, getCachedOrFreshData } from '../../utils/attendanceService'
+import { useRouter } from 'expo-router'
+import { getStoredCredentials, getCachedOrFreshData } from '../../utils/attendanceService'
 import {
   View,
   Text,
@@ -8,20 +8,16 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
-  StyleSheet,
-  Dimensions,
-  Platform
+  StyleSheet
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import { LinearGradient } from 'expo-linear-gradient'
 import LogoutModal from '../../components/LogoutModal'
 import { sessionManager } from '../../utils/sessionManager'
 import SettingsModal from '../../components/SettingsModal'
 import ProfileMenu from '../../components/ProfileMenu'
 import { notificationService } from '../../utils/notificationService'
-
-const { width } = Dimensions.get('window')
+import { StatusBar } from 'expo-status-bar'
 
 interface Exam {
   COURSE_CODE: string
@@ -62,7 +58,7 @@ const ExamCard = ({ exam, ...props }: { exam: Exam } & React.ComponentProps<type
       }
 
       return dateStr; // Return original if parsing fails
-    } catch (e) {
+    } catch {
       return dateStr; // Return original if parsing fails
     }
   };
@@ -98,7 +94,7 @@ const ExamCard = ({ exam, ...props }: { exam: Exam } & React.ComponentProps<type
       if (diffDays === 0) return "Today";
       if (diffDays === 1) return "Tomorrow";
       return `${diffDays} days`;
-    } catch (e) {
+    } catch {
       return "";
     }
   };
@@ -135,7 +131,7 @@ const ExamCard = ({ exam, ...props }: { exam: Exam } & React.ComponentProps<type
       if (diffDays <= 2) return { backgroundColor: '#fee2e2', lightBackground: '#fef2f2', textColor: '#dc2626' }; // Urgent (0-2 days)
       if (diffDays <= 7) return { backgroundColor: '#fef3c7', lightBackground: '#fffbeb', textColor: '#d97706' }; // Soon (3-7 days)
       return { backgroundColor: '#dcfce7', lightBackground: '#f0fdf4', textColor: '#16a34a' }; // Plenty of time (>7 days)
-    } catch (e) {
+    } catch {
       return { backgroundColor: '#f3f4f6', lightBackground: '#f9fafb', textColor: '#6b7280' };
     }
   };
@@ -172,7 +168,7 @@ const ExamCard = ({ exam, ...props }: { exam: Exam } & React.ComponentProps<type
       if (diffDays <= 2) return 'alert-circle'; // Urgent (0-2 days)
       if (diffDays <= 7) return 'warning'; // Soon (3-7 days)
       return 'calendar'; // Plenty of time (>7 days)
-    } catch (e) {
+    } catch {
       return 'help-circle';
     }
   };
@@ -264,6 +260,7 @@ export default function Timetable() {
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
   const [examNotificationsEnabled, setExamNotificationsEnabled] = useState(true)
+  const [refreshLoading, setRefreshLoading] = useState(false)
 
   useEffect(() => {
     const fetchTimetable = async () => {
@@ -330,7 +327,7 @@ export default function Timetable() {
     }
 
     loadNotificationPreferences()
-  }, [])
+  }, [router])
 
   const handleLogout = () => {
     setShowLogoutModal(true)
@@ -380,6 +377,52 @@ export default function Timetable() {
     await notificationService.setExamNotificationsEnabled(newState)
   }
 
+  const handleRefresh = async () => {
+    try {
+      setRefreshLoading(true)
+
+      // Get credentials from storage
+      const credentials = await getStoredCredentials()
+      if (!credentials) {
+        Alert.alert('Error', 'No credentials found. Please log in again.')
+        return
+      }
+
+      // Clear cache for exam schedule to force fresh data
+      // Note: We can't directly clear specific cache entries, but we can force fresh fetch
+      setLoading(true)
+      setError(null)
+
+      // Get user name for display
+      try {
+        const greeting = await getCachedOrFreshData('greeting', credentials.rollNo, credentials.password);
+        const name = (greeting.split(',')[1]?.trim() || greeting.split(' ')[1] || 'User').replace('!', '');
+        setUserName(name);
+      } catch (nameError) {
+        console.error('Error fetching user name:', nameError);
+        setUserName('User');
+      }
+
+      // Get fresh exam schedule data
+      const examData = await getCachedOrFreshData('exam_schedule', credentials.rollNo, credentials.password);
+
+      if (examData && examData.length > 0) {
+        setExams(examData);
+        setMessage('Exam schedule refreshed successfully');
+      } else {
+        setExams([]);
+        setMessage('No exam schedule found');
+      }
+    } catch (err: any) {
+      console.error('Error refreshing exam schedule:', err)
+      setError(err.message || 'Failed to refresh exam schedule')
+      Alert.alert('Error', err.message || 'Failed to refresh exam schedule')
+    } finally {
+      setRefreshLoading(false)
+      setLoading(false)
+    }
+  }
+
   // Sort exams by date
   const sortedExams = [...exams].sort((a, b) => {
     try {
@@ -390,7 +433,7 @@ export default function Timetable() {
       const dateB = new Date(parseInt(`20${yearB}`), parseInt(monthB) - 1, parseInt(dayB));
 
       return dateA.getTime() - dateB.getTime();
-    } catch (e) {
+    } catch {
       return 0;
     }
   });
@@ -445,6 +488,7 @@ export default function Timetable() {
 
   return (
     <View style={styles.container}>
+      <StatusBar style="light" hidden={true} />
       {/* Top Bar */}
       <View style={styles.topBar}>
         <View style={styles.topBarContent}>
@@ -554,6 +598,8 @@ export default function Timetable() {
         examNotificationsEnabled={examNotificationsEnabled}
         onToggleNotifications={toggleNotifications}
         onToggleExamNotifications={toggleExamNotifications}
+        onRefreshData={handleRefresh}
+        isRefreshingData={refreshLoading}
       />
     </View>
   )
@@ -637,7 +683,7 @@ const styles = StyleSheet.create({
   },
   topBar: {
     backgroundColor: '#0f172a',
-    paddingTop: Platform.OS === 'ios' ? 20 : 16,
+    paddingTop: 16,
     paddingBottom: 16,
     paddingHorizontal: 20,
     shadowColor: '#000',

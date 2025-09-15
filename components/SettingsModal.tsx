@@ -19,6 +19,8 @@ interface SettingsModalProps {
   examNotificationsEnabled: boolean;
   onToggleNotifications: () => void;
   onToggleExamNotifications: () => void;
+  onRefreshData?: () => void;
+  isRefreshingData?: boolean;
 }
 
 export default function SettingsModal({
@@ -28,6 +30,8 @@ export default function SettingsModal({
   examNotificationsEnabled,
   onToggleNotifications,
   onToggleExamNotifications,
+  onRefreshData,
+  isRefreshingData = false,
 }: SettingsModalProps) {
   return (
     <Modal
@@ -120,6 +124,41 @@ export default function SettingsModal({
               <View style={styles.settingContent}>
                 <Text style={styles.settingText}>
                   Get reminded about exams: 6PM the day before and 6AM on exam day
+                </Text>
+              </View>
+            </View>
+
+            {/* Refresh Data */}
+            <View style={styles.settingItem}>
+              <LinearGradient
+                colors={['#dc2626', '#ef4444', '#f87171']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.settingHeader}
+              >
+                <View style={styles.settingIconContainer}>
+                  <Ionicons name="refresh" size={20} color="#dc2626" />
+                </View>
+                <Text style={styles.settingTitle}>Refresh Data</Text>
+                <TouchableOpacity
+                  style={styles.settingButton}
+                  onPress={onRefreshData}
+                  disabled={isRefreshingData}
+                >
+                  <Ionicons
+                    name={isRefreshingData ? "hourglass" : "refresh"}
+                    size={20}
+                    color="#ffffff"
+                  />
+                </TouchableOpacity>
+              </LinearGradient>
+
+              <View style={styles.settingContent}>
+                <Text style={styles.settingText}>
+                  {isRefreshingData
+                    ? "Refreshing data from server..."
+                    : "Manually refresh all attendance, exam, and grade data"
+                  }
                 </Text>
               </View>
             </View>
@@ -230,5 +269,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
     lineHeight: 20,
+  },
+  settingButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

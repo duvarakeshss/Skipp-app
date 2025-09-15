@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'expo-router'
-import { getStoredCredentials, clearCredentials, getCgpa, greetUser, getCachedOrFreshData } from '../../utils/attendanceService'
+import { getStoredCredentials, clearCredentials, getCachedOrFreshData } from '../../utils/attendanceService'
+import { sessionManager } from '../../utils/sessionManager'
 import {
   View,
   Text,
@@ -8,17 +9,14 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
-  StyleSheet,
-  Dimensions,
-  Platform
+  StyleSheet
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { notificationService } from '../../utils/notificationService'
 import ProfileMenu from '../../components/ProfileMenu'
 import SettingsModal from '../../components/SettingsModal'
-
-const { width } = Dimensions.get('window')
+import { StatusBar } from 'expo-status-bar'
 
 interface SemesterData {
   SEMESTER: string
@@ -90,6 +88,7 @@ const Cgpa = () => {
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
   const [examNotificationsEnabled, setExamNotificationsEnabled] = useState(true)
+  const [refreshLoading, setRefreshLoading] = useState(false)
 
   useEffect(() => {
     const fetchCgpaData = async () => {
@@ -146,7 +145,7 @@ const Cgpa = () => {
     }
 
     fetchCgpaData()
-  }, [])
+  }, [router])
 
   const handleLogout = () => {
     Alert.alert(
@@ -161,15 +160,21 @@ const Cgpa = () => {
           text: 'Logout',
           style: 'destructive',
           onPress: async () => {
-            await clearCredentials()
-            // Clear saved login credentials
             try {
-              await AsyncStorage.removeItem('saved_rollno')
-              await AsyncStorage.removeItem('saved_password')
-            } catch (storageError) {
-              console.error('Error clearing saved credentials:', storageError)
+              await sessionManager.logout()
+              router.replace('/login')
+            } catch (error) {
+              console.error('Logout error:', error)
+              // Fallback to manual cleanup if sessionManager fails
+              await clearCredentials()
+              try {
+                await AsyncStorage.removeItem('saved_rollno')
+                await AsyncStorage.removeItem('saved_password')
+              } catch (storageError) {
+                console.error('Error clearing saved credentials:', storageError)
+              }
+              router.replace('/login')
             }
-            router.replace('/login')
           }
         }
       ]
@@ -204,12 +209,57 @@ const Cgpa = () => {
     await notificationService.setExamNotificationsEnabled(newState)
   }
 
+  const handleRefresh = async () => {
+    try {
+      setRefreshLoading(true)
+
+      // Get credentials from storage
+      const credentials = await getStoredCredentials()
+      if (!credentials) {
+        Alert.alert('Error', 'No credentials found. Please log in again.')
+        return
+      }
+
+      // Clear cache for CGPA data to force fresh data
+      setLoading(true)
+      setError(null)
+
+      // Get user name for display
+      try {
+        const greeting = await getCachedOrFreshData('greeting', credentials.rollNo, credentials.password);
+        const name = (greeting.split(',')[1]?.trim() || greeting.split(' ')[1] || 'User').replace('!', '');
+        setUserName(name);
+      } catch (nameError) {
+        console.error('Error fetching user name:', nameError);
+        setUserName('User');
+      }
+
+      // Get fresh CGPA data
+      const data = await getCachedOrFreshData('cgpa', credentials.rollNo, credentials.password);
+
+      if (data && data.length > 0) {
+        setCgpaData(data);
+      } else {
+        setCgpaData([]);
+        setError('No CGPA data found');
+      }
+    } catch (err: any) {
+      console.error('Error refreshing CGPA data:', err)
+      setError(err.message || 'Failed to refresh CGPA data')
+      Alert.alert('Error', err.message || 'Failed to refresh CGPA data')
+    } finally {
+      setRefreshLoading(false)
+      setLoading(false)
+    }
+  }
+
   // Get the latest CGPA info if available
   const latestCgpaData = cgpaData.length > 0 ?
     cgpaData.filter(sem => sem.CGPA !== "-").slice(-1)[0] : null
 
   return (
     <View style={styles.container}>
+      <StatusBar style="light" hidden={true} />
       {/* Top Bar */}
       <View style={styles.topBar}>
         <View style={styles.topBarContent}>
@@ -239,7 +289,7 @@ const Cgpa = () => {
             <View style={styles.errorContainer}>
               <Text style={styles.errorTitle}>No CGPA Data Available</Text>
               <Text style={styles.errorMessage}>
-                Your CGPA data will appear here once it's published by your institution.
+                Your CGPA data will appear here once it&apos;s published by your institution.
               </Text>
             </View>
           ) : (
@@ -333,6 +383,8 @@ const Cgpa = () => {
         examNotificationsEnabled={examNotificationsEnabled}
         onToggleNotifications={handleToggleNotifications}
         onToggleExamNotifications={handleToggleExamNotifications}
+        onRefreshData={handleRefresh}
+        isRefreshingData={refreshLoading}
       />
     </View>
   )
@@ -345,7 +397,7 @@ const styles = StyleSheet.create({
   },
   topBar: {
     backgroundColor: '#0f172a',
-    paddingTop: Platform.OS === 'ios' ? 20 : 16,
+    paddingTop: 16, // Reduced since status bar is hidden
     paddingBottom: 16,
     paddingHorizontal: 20,
     shadowColor: '#000',

@@ -1,9 +1,10 @@
-import React from 'react';
+import * as React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { validateSession, isLoggedIn, getStoredCredentials } from './attendanceService';
+import { validateSession, getStoredCredentials, dataCache } from './attendanceService';
 import { fetchAndCacheAllData } from './attendanceService';
 import { notificationService } from './notificationService';
 import { registerBackgroundRefresh, unregisterBackgroundRefresh } from './backgroundService';
+import { versionTracker } from './versionTracker';
 
 export interface SessionState {
   isAuthenticated: boolean;
@@ -58,14 +59,11 @@ class SessionManager {
 
   // Start background refresh service
   private async startBackgroundRefreshService(): Promise<() => void> {
-    console.log('🚀 Starting background refresh service...');
-
     // Register the background task
     await registerBackgroundRefresh();
 
     // Return cleanup function
     return async () => {
-      console.log('🛑 Stopping background refresh service');
       await unregisterBackgroundRefresh();
     };
   }
@@ -99,6 +97,13 @@ class SessionManager {
         lastLoginTime: timestamp ? parseInt(timestamp) : undefined,
       };
 
+      // Check for app updates and refresh data if needed
+      try {
+        await versionTracker.handleAppUpdate();
+      } catch (updateError) {
+        console.warn('⚠️ App update check failed, continuing with normal startup:', updateError);
+      }
+
       // Start background refresh service
       this.backgroundRefreshCleanup = await this.startBackgroundRefreshService();
 
@@ -121,6 +126,22 @@ class SessionManager {
 
       // Store credentials (this is handled by loginUser in attendanceService)
       const timestamp = Date.now();
+
+      // Initialize cache with fresh data
+      try {
+        await fetchAndCacheAllData(rollNo, password);
+      } catch (cacheError) {
+        console.warn('⚠️ Failed to initialize cache, but login successful:', cacheError);
+        // Don't block login if cache fails
+      }
+
+      // Start background refresh service
+      try {
+        this.backgroundRefreshCleanup = await this.startBackgroundRefreshService();
+      } catch (bgError) {
+        console.warn('⚠️ Failed to start background refresh service:', bgError);
+        // Don't block login if background service fails
+      }
 
       this.sessionState = {
         isAuthenticated: true,
@@ -172,11 +193,15 @@ class SessionManager {
 
       await AsyncStorage.multiRemove(keys);
 
+      // Clear all cached data
+      await dataCache.clearAllCache();
+
       // Stop background refresh service
       if (this.backgroundRefreshCleanup) {
         await this.backgroundRefreshCleanup();
         this.backgroundRefreshCleanup = undefined;
       }
+
     } catch (error) {
       console.error('Error clearing session data:', error);
       throw error;

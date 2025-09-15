@@ -8,7 +8,6 @@ export class BackgroundServiceUtils {
   static async registerService(): Promise<void> {
     try {
       await registerBackgroundRefresh();
-      console.log('✅ Background service registered successfully');
     } catch (error) {
       console.error('❌ Failed to register background service:', error);
       throw error;
@@ -19,7 +18,6 @@ export class BackgroundServiceUtils {
   static async unregisterService(): Promise<void> {
     try {
       await unregisterBackgroundRefresh();
-      console.log('✅ Background service unregistered successfully');
     } catch (error) {
       console.error('❌ Failed to unregister background service:', error);
       throw error;
@@ -59,8 +57,6 @@ export class BackgroundServiceUtils {
   // Force trigger background refresh (for testing)
   static async forceRefresh(): Promise<void> {
     try {
-      console.log('🔧 Force triggering background refresh...');
-
       // Import required services
       const { fetchAndCacheAllData } = await import('./attendanceService');
       const { notificationService } = await import('./notificationService');
@@ -114,8 +110,6 @@ export class BackgroundServiceUtils {
         }
       }
 
-      console.log('✅ Force refresh completed successfully');
-
     } catch (error) {
       console.error('❌ Failed to force refresh:', error);
       throw error;
@@ -129,7 +123,7 @@ export class BackgroundServiceUtils {
         'last_midnight_refresh',
         'last_afternoon_refresh'
       ]);
-      console.log('✅ Refresh history cleared');
+
     } catch (error) {
       console.error('❌ Failed to clear refresh history:', error);
       throw error;

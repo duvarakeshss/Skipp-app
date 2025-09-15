@@ -26,7 +26,6 @@ export class NotificationService {
   // Request notification permissions
   async requestPermissions(): Promise<boolean> {
     if (!Device.isDevice) {
-      console.log('Notifications only work on physical devices');
       return false;
     }
 
@@ -39,7 +38,6 @@ export class NotificationService {
     }
 
     if (finalStatus !== 'granted') {
-      console.log('Notification permissions not granted');
       return false;
     }
 
@@ -55,19 +53,16 @@ export class NotificationService {
       // Check if notifications are enabled for this session
       const notificationsEnabled = await AsyncStorage.getItem('notifications_enabled');
       if (notificationsEnabled === 'false') {
-        console.log('📱 Attendance notifications disabled by user');
         return;
       }
 
       // Validate input data
       if (!attendanceData || !Array.isArray(attendanceData) || attendanceData.length === 0) {
-        console.log('📱 No attendance data available, skipping notifications');
         return;
       }
 
       // Validate userName
       if (!userName || typeof userName !== 'string' || userName.trim() === '') {
-        console.log('📱 Invalid user name, skipping notifications');
         return;
       }
 
@@ -82,7 +77,6 @@ export class NotificationService {
       });
 
       if (lowAttendanceCourses.length === 0) {
-        console.log('📱 No courses with low attendance found');
         return;
       }
 
@@ -91,7 +85,6 @@ export class NotificationService {
       const lastNotificationDate = await AsyncStorage.getItem('last_low_attendance_notification');
 
       if (lastNotificationDate === today) {
-        console.log('📱 Already sent attendance notifications today');
         return;
       }
 
@@ -128,8 +121,6 @@ export class NotificationService {
         trigger: null, // Send immediately
       });
 
-      console.log(`📱 Notification sent: ${courseCode} - ${percentage}%`);
-
     } catch (error) {
       console.error('Error sending notification:', error);
     }
@@ -160,7 +151,6 @@ export class NotificationService {
     try {
       await AsyncStorage.removeItem('last_low_attendance_notification');
       await AsyncStorage.removeItem('last_exam_reminder_notification');
-      console.log('🧹 Notification history cleared');
     } catch (error) {
       console.error('Error clearing notification history:', error);
     }
@@ -175,19 +165,16 @@ export class NotificationService {
       // Check if exam notifications are enabled
       const examNotificationsEnabled = await AsyncStorage.getItem('exam_notifications_enabled');
       if (examNotificationsEnabled === 'false') {
-        console.log('📱 Exam notifications disabled by user');
         return;
       }
 
       // Validate input data
       if (!examData || !Array.isArray(examData) || examData.length === 0) {
-        console.log('📱 No exam data available, skipping notifications');
         return;
       }
 
       // Validate userName
       if (!userName || typeof userName !== 'string' || userName.trim() === '') {
-        console.log('📱 Invalid user name, skipping exam notifications');
         return;
       }
 
@@ -201,11 +188,8 @@ export class NotificationService {
       });
 
       if (validExams.length === 0) {
-        console.log('📱 No valid exam data found, skipping notifications');
         return;
       }
-
-      console.log(`📱 Processing ${validExams.length} valid exams for notifications`);
 
       const now = new Date();
       const tomorrow = new Date(now);
@@ -218,7 +202,6 @@ export class NotificationService {
       });
 
       if (tomorrowExams.length > 0) {
-        console.log(`📱 Found ${tomorrowExams.length} exams tomorrow`);
         // Check if we already sent reminder today
         const today = now.toDateString();
         const lastReminderDate = await AsyncStorage.getItem('last_exam_reminder_notification');
@@ -236,18 +219,13 @@ export class NotificationService {
 
           // Mark reminder as sent today
           await AsyncStorage.setItem('last_exam_reminder_notification', today);
-        } else {
-          console.log('📱 Already sent exam reminders today');
         }
-      } else {
-        console.log('📱 No exams found for tomorrow');
       }
 
       // Schedule notifications for exam day at 6 AM
       for (const exam of validExams) {
         const examDate = this.parseExamDate(exam.DATE || exam.date);
         if (examDate && this.isSameDate(examDate, now)) {
-          console.log(`📱 Found exam today: ${exam.COURSE_CODE || exam.course_code}`);
           // Check if we already sent today's exam notification
           const examKey = `exam_notification_${exam.COURSE_CODE || exam.course_code}_${exam.DATE || exam.date}`;
           const alreadySent = await AsyncStorage.getItem(examKey);
@@ -260,8 +238,6 @@ export class NotificationService {
             );
             await AsyncStorage.setItem(examKey, 'sent');
             await new Promise(resolve => setTimeout(resolve, 1000));
-          } else {
-            console.log(`📱 Already sent notification for today's exam: ${exam.COURSE_CODE || exam.course_code}`);
           }
         }
       }
@@ -314,8 +290,6 @@ export class NotificationService {
         trigger: null, // Send immediately
       });
 
-      console.log(`📱 Exam reminder sent: ${courseCode} - ${examDate} at ${examTime}`);
-
     } catch (error) {
       console.error('Error sending exam reminder notification:', error);
     }
@@ -338,8 +312,6 @@ export class NotificationService {
         },
         trigger: null, // Send immediately
       });
-
-      console.log(`📱 Exam day notification sent: ${courseCode} - exam time`);
 
     } catch (error) {
       console.error('Error sending exam day notification:', error);

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'expo-router'
-import { getStoredCredentials, clearCredentials, getInternals, greetUser, getCachedOrFreshData } from '../../utils/attendanceService'
+import { getStoredCredentials, clearCredentials, getCachedOrFreshData } from '../../utils/attendanceService'
 import {
   View,
   Text,
@@ -9,8 +9,6 @@ import {
   Alert,
   ActivityIndicator,
   StyleSheet,
-  Dimensions,
-  Platform,
   StatusBar
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
@@ -18,13 +16,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { notificationService } from '../../utils/notificationService'
 import ProfileMenu from '../../components/ProfileMenu'
 import SettingsModal from '../../components/SettingsModal'
-
-const { width } = Dimensions.get('window')
-
-interface InternalMark {
-  course: string
-  marks: string[]
-}
 
 const InternalCard = ({ course, marks, index }: { course: string; marks: string[]; index: number }) => {
   // Extract course code from the course string and course name and marks from assessments array
@@ -66,7 +57,7 @@ const InternalCard = ({ course, marks, index }: { course: string; marks: string[
     return { courseCode, courseName, test1, test2, final50, final40, actualMarks }
   }
 
-  const { courseCode, courseName, test1, test2, final50, final40, actualMarks } = processCourseData(course, marks)
+  const { courseCode, courseName, test1, test2, final50, final40 } = processCourseData(course, marks)
 
   return (
     <View style={styles.internalCard}>
@@ -125,6 +116,7 @@ const Internals = () => {
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
   const [examNotificationsEnabled, setExamNotificationsEnabled] = useState(true)
+  const [refreshLoading, setRefreshLoading] = useState(false)
 
   useEffect(() => {
     const fetchInternalsData = async () => {
@@ -169,7 +161,7 @@ const Internals = () => {
     }
 
     fetchInternalsData()
-  }, [])
+  }, [router])
 
   // Process internals data to extract course and marks information
   const processedData = internalsData && Array.isArray(internalsData) && internalsData.length > 0
@@ -236,6 +228,50 @@ const Internals = () => {
     await notificationService.setExamNotificationsEnabled(newState)
   }
 
+  const handleRefresh = async () => {
+    try {
+      setRefreshLoading(true)
+
+      // Get credentials from storage
+      const credentials = await getStoredCredentials()
+      if (!credentials) {
+        Alert.alert('Error', 'No credentials found. Please log in again.')
+        return
+      }
+
+      // Clear cache for internals data to force fresh data
+      setLoading(true)
+      setError(null)
+
+      // Get user name for display
+      try {
+        const greeting = await getCachedOrFreshData('greeting', credentials.rollNo, credentials.password);
+        const name = (greeting.split(',')[1]?.trim() || greeting.split(' ')[1] || 'User').replace('!', '');
+        setUserName(name);
+      } catch (nameError) {
+        console.error('Error fetching user name:', nameError);
+        setUserName('User');
+      }
+
+      // Get fresh internals data
+      const internals = await getCachedOrFreshData('internals', credentials.rollNo, credentials.password);
+
+      if (internals && internals.length > 0) {
+        setInternalsData(internals);
+      } else {
+        setInternalsData([]);
+        setError('No internals data found');
+      }
+    } catch (err: any) {
+      console.error('Error refreshing internals data:', err)
+      setError(err.message || 'Failed to refresh internals data')
+      Alert.alert('Error', err.message || 'Failed to refresh internals data')
+    } finally {
+      setRefreshLoading(false)
+      setLoading(false)
+    }
+  }
+
   return (
     <View style={styles.container}>
       <StatusBar
@@ -275,7 +311,7 @@ const Internals = () => {
               <Ionicons name="alert-circle" size={64} color="#ef4444" />
               <Text style={styles.errorTitle}>No Internal Marks Data Available</Text>
               <Text style={styles.errorMessage}>
-                Your internal assessment data will appear here once it's published by your institution.
+                Your internal assessment data will appear here once it&apos;s published by your institution.
               </Text>
             </View>
           ) : (
@@ -312,6 +348,8 @@ const Internals = () => {
         examNotificationsEnabled={examNotificationsEnabled}
         onToggleNotifications={handleToggleNotifications}
         onToggleExamNotifications={handleToggleExamNotifications}
+        onRefreshData={handleRefresh}
+        isRefreshingData={refreshLoading}
       />
     </View>
   )
@@ -324,7 +362,7 @@ const styles = StyleSheet.create({
   },
   topBar: {
     backgroundColor: '#000000',
-    paddingTop: Platform.OS === 'ios' ? 20 : 16,
+    paddingTop: 16,
     paddingBottom: 16,
     paddingHorizontal: 20,
     shadowColor: '#000',

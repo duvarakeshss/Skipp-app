@@ -8,16 +8,12 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
-  StyleSheet,
-  Dimensions,
-  Platform,
-  StatusBar
+  StyleSheet
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { LinearGradient } from 'expo-linear-gradient'
-
-const { width } = Dimensions.get('window')
+import { StatusBar } from 'expo-status-bar'
 
 interface Exam {
   COURSE_CODE: string
@@ -58,7 +54,7 @@ const ExamCard = ({ exam, ...props }: { exam: Exam } & React.ComponentProps<type
       }
 
       return dateStr; // Return original if parsing fails
-    } catch (e) {
+    } catch {
       return dateStr; // Return original if parsing fails
     }
   };
@@ -94,7 +90,7 @@ const ExamCard = ({ exam, ...props }: { exam: Exam } & React.ComponentProps<type
       if (diffDays === 0) return "Today";
       if (diffDays === 1) return "Tomorrow";
       return `${diffDays} days`;
-    } catch (e) {
+    } catch {
       return "";
     }
   };
@@ -130,7 +126,7 @@ const ExamCard = ({ exam, ...props }: { exam: Exam } & React.ComponentProps<type
       if (diffDays <= 2) return { backgroundColor: '#fee2e2', textColor: '#dc2626' }; // Urgent (0-2 days)
       if (diffDays <= 7) return { backgroundColor: '#fef3c7', textColor: '#d97706' }; // Soon (3-7 days)
       return { backgroundColor: '#dcfce7', textColor: '#16a34a' }; // Plenty of time (>7 days)
-    } catch (e) {
+    } catch {
       return { backgroundColor: '#f3f4f6', textColor: '#6b7280' };
     }
   };
@@ -224,7 +220,7 @@ export default function Timetable() {
     }
 
     fetchTimetable()
-  }, [rollNo, password])
+  }, [rollNo, password, router])
 
   const handleLogout = () => {
     Alert.alert(
@@ -264,7 +260,7 @@ export default function Timetable() {
       const dateB = new Date(parseInt(`20${yearB}`), parseInt(monthB) - 1, parseInt(dayB));
 
       return dateA.getTime() - dateB.getTime();
-    } catch (e) {
+    } catch {
       return 0;
     }
   });
@@ -281,12 +277,7 @@ export default function Timetable() {
 
   return (
     <View style={styles.container}>
-      <StatusBar
-        barStyle="light-content"
-        backgroundColor="#000000"
-        translucent={true}
-        hidden={true}
-      />
+      <StatusBar style="light" hidden={true} />
 
       {/* Top Bar */}
       <View style={styles.topBar}>
@@ -379,7 +370,7 @@ const styles = StyleSheet.create({
   },
   topBar: {
     backgroundColor: '#000000',
-    paddingTop: Platform.OS === 'ios' ? 20 : 16,
+    paddingTop: 16,
     paddingBottom: 16,
     paddingHorizontal: 20,
     shadowColor: '#000',

@@ -61,19 +61,15 @@ export const backgroundRefresh = {
   // Perform background data refresh
   async performBackgroundRefresh(): Promise<void> {
     try {
-      console.log('Performing background data refresh...');
-
       // Check if user is logged in
       const credentials = await getStoredCredentials();
       if (!credentials) {
-        console.log('No credentials found, skipping background refresh');
         return;
       }
 
       // Check if we should perform daily refresh
       const shouldRefresh = await this.shouldPerformDailyRefresh();
       if (!shouldRefresh) {
-        console.log('Daily refresh not needed at this time');
         return;
       }
 
@@ -83,7 +79,6 @@ export const backgroundRefresh = {
       // Update last refresh time
       await this.setLastRefreshTime();
 
-      console.log('Background data refresh completed successfully');
     } catch (error) {
       console.error('Error during background refresh:', error);
     }
@@ -105,8 +100,6 @@ export const backgroundRefresh = {
       }
 
       const timeUntilRefresh = nextRefresh.getTime() - now.getTime();
-
-      console.log(`Next data refresh scheduled in ${Math.round(timeUntilRefresh / (1000 * 60))} minutes`);
 
       // Store the scheduled time
       await AsyncStorage.setItem('nimora_next_refresh', nextRefresh.getTime().toString());
@@ -138,8 +131,6 @@ let refreshInterval: ReturnType<typeof setInterval> | null = null;
 // Initialize background refresh system
 export const initializeBackgroundRefresh = async (): Promise<void> => {
   try {
-    console.log('Initializing background refresh system...');
-
     // Schedule next refresh
     await backgroundRefresh.scheduleNextRefresh();
 
@@ -181,7 +172,6 @@ export const initializeBackgroundRefresh = async (): Promise<void> => {
     // Store subscription for cleanup
     await AsyncStorage.setItem('nimora_app_state_subscription', 'active');
 
-    console.log('Background refresh system initialized');
   } catch (error) {
     console.error('Error initializing background refresh:', error);
   }
@@ -203,8 +193,6 @@ export const cleanupBackgroundRefresh = async (): Promise<void> => {
 // Manual refresh function (can be called from UI)
 export const manualRefreshData = async (): Promise<void> => {
   try {
-    console.log('Manual data refresh triggered...');
-
     const credentials = await getStoredCredentials();
     if (!credentials) {
       throw new Error('No credentials found');
@@ -213,7 +201,6 @@ export const manualRefreshData = async (): Promise<void> => {
     await fetchAndCacheAllData(credentials.rollNo, credentials.password);
     await backgroundRefresh.setLastRefreshTime();
 
-    console.log('Manual data refresh completed');
   } catch (error) {
     console.error('Error during manual refresh:', error);
     throw error;

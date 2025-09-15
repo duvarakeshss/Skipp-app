@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useRouter, usePathname } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native'
+import { sessionManager } from '../utils/sessionManager'
 
 const Navbar = () => {
   const router = useRouter()
@@ -14,10 +15,15 @@ const Navbar = () => {
     { path: '/login' as const, name: 'Login', icon: 'log-in' },
   ]
 
-  const handleLogout = () => {
-    // Clear stored credentials (implement based on your auth system)
-    // For now, just navigate to login
-    router.replace('/login')
+  const handleLogout = async () => {
+    try {
+      await sessionManager.logout()
+      router.replace('/login')
+    } catch (error) {
+      console.error('Logout error:', error)
+      // Fallback to just navigation if logout fails
+      router.replace('/login')
+    }
   }
 
   const handleNavigation = (path: '/(tabs)' | '/login') => {
